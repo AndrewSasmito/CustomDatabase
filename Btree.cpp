@@ -26,9 +26,9 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, ValueType* value) {
 }
 
 // Explicit template instantiation (to generate the specific versions of the template classes)
-template class BTreeNode<int, int>;
-template class BTree<int, int>;
-template class BTreeNode<std::string, int>;
-template class BTree<std::string, int>;
-template class BTreeNode<fraction, int>;
-template class BTree<fraction, int>;
+template class BTreeNode<int, std::vector<std::string> *>;
+template class BTree<int, std::vector<std::string> *>;
+template class BTreeNode<std::string, std::vector<std::string> *>;
+template class BTree<std::string, std::vector<std::string> *>;
+template class BTreeNode<fraction, std::vector<std::string> *>;
+template class BTree<fraction, std::vector<std::string> *>;
