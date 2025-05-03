@@ -13,11 +13,13 @@ void Table::insert(const std::vector<std::string>& values) {
 }
 
 // Print all rows in the table
-void Table::printAll() {
+std::string Table::printAll() {
+    std::string resultString = "";
     for (const auto& row : rows) {
         for (const auto& val : row) {
-            std::cout << val << " ";
+            resultString += val + " ";
         }
-        std::cout << "\n";
+        resultString += "\n";
     }
+    return resultString;
 }
