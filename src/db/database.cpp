@@ -5,7 +5,9 @@ void Database::createTable(const std::string& name, const std::vector<std::strin
     tables[name] = Table(columns);
 }
 
-// Get a pointer to the table with the given name
+/* Get a pointer to the table with the given name
+*   Return a pointer to the table on success, nullptr otherwise
+*/ 
 Table* Database::getTable(const std::string& name) {
     if (tables.find(name) != tables.end()) {
         return &tables[name]; // Return ptr
