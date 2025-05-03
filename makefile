@@ -10,7 +10,8 @@ SRCS = \
 	src/main.cpp \
 	src/Btree.cpp \
 	src/db/table.cpp \
-	src/db/database.cpp
+	src/db/database.cpp \
+	src/db/test.cpp
 
 # Object files (replace .cpp with .o)
 OBJS = $(SRCS:src/%.cpp=build/%.o)
