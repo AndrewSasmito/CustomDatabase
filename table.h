@@ -5,6 +5,7 @@
 
 class Table {
 public: // Constructor, to initialize the table with column names
+    Table() = default;
     Table(const std::vector<std::string>& columns);
     void insert(const std::vector<std::string>& values);
     void printAll(); // Sample use of print function
