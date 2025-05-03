@@ -2,35 +2,40 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 
-# Executable name
-EXEC = database
+# Executables
+MAIN_EXEC = database
+TEST_EXEC = test
 
-# Source files
-SRCS = \
-	src/main.cpp \
+# Source files (shared between both)
+CORE_SRCS = \
 	src/Btree.cpp \
 	src/db/table.cpp \
-	src/db/database.cpp \
-	src/db/test.cpp
+	src/db/database.cpp
 
-# Object files (replace .cpp with .o)
-OBJS = $(SRCS:src/%.cpp=build/%.o)
+MAIN_SRC = src/main.cpp
+TEST_SRC = src/test.cpp
 
-# Default target: build executable
-all: $(EXEC)
+# Object files
+CORE_OBJS = $(CORE_SRCS:src/%.cpp=build/%.o)
+MAIN_OBJ = $(MAIN_SRC:src/%.cpp=build/%.o)
+TEST_OBJ = $(TEST_SRC:src/%.cpp=build/%.o)
 
-# Link object files into executable
-$(EXEC): $(OBJS)
+# Targets
+all: $(MAIN_EXEC)
+
+$(MAIN_EXEC): $(CORE_OBJS) $(MAIN_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-# Rule to build object files from source files
+$(TEST_EXEC): $(CORE_OBJS) $(TEST_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+# Generic rule for building .o files
 build/%.o: src/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Clean up generated files
+# Clean
 clean:
-	rm -rf $(OBJS) $(EXEC)
+	rm -rf build/ $(MAIN_EXEC) $(TEST_EXEC)
 
-# Phony targets (not actual files)
 .PHONY: all clean
