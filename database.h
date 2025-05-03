@@ -2,6 +2,7 @@
 #include <string>
 #include <unordered_map>
 #include "table.h"
+#include "btree.h"
 
 class Database {
 public: // Create a table with the given name and columns
