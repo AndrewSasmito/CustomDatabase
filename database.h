@@ -1,50 +1,13 @@
 #pragma once
+#include <string>
+#include <unordered_map>
+#include "table.h"
 
-#include<unordered_map>
-#include<vector>
-#include<variant>
+class Database {
+public: // Create a table with the given name and columns
+    void createTable(const std::string& name, const std::vector<std::string>& columns);
+    Table* getTable(const std::string& name);
 
-/*
-*   BTreeNode that stores whether it is a leaf, the key, values and pointer to children
-*/
-template<typename KeyType, typename ValueType> //Makes it so the types are arbitrary
-class BTreeNode {
-    public:
-        bool is_leaf;
-        std::vector<KeyType> keys;
-        std::vector<ValueType*> values;
-        std::vector<BTreeNode*> children;
-
-        BTreeNode(bool leaf); // Constructor declaration
+private: // Store tables in a map with the table name as the key
+    std::unordered_map<std::string, Table> tables;
 };
-
-/*
-*   BTree that stores the BTreeNodes, ensures it is balanced
-*
-*/
-template <typename KeyType, typename ValueType>
-class BTree {
-    private:
-        BTreeNode<KeyType, ValueType>* root;
-        int maxKeysPerNode;  // Maximum keys in each node
-        BTree(int maxKeys);  // Constructor declaration
-        void insert(const KeyType& key, ValueType* value);
-};
-
-/*
-* Fraction format for precise comparison
-*/
-struct fraction {
-    int top;
-    int bottom;
-};
-
-
-using VariantType = std::variant<int, float, std::string, fraction>;
-
-// extern types for storage
-extern std::unordered_map<std::string, BTree<int, int>> hashTreeStorage;
-extern std::unordered_map<std::string, BTree<int, int>> intTreeStorage;
-extern std::unordered_map<std::string, BTree<std::string, int>> stringTreeStorage;
-extern std::unordered_map<std::string, BTree<fraction, int>> decTreeStorage;
-extern std::vector<VariantType> memory;
