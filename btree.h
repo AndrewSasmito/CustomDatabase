@@ -3,6 +3,7 @@
 #include<unordered_map>
 #include<vector>
 #include<variant>
+#include<string>
 
 /*
 *   BTreeNode that stores whether it is a leaf, the key, values and pointer to children
