@@ -17,8 +17,5 @@ jobs:
     - name: Build using Makefile
       run: make
 
-    - name: Build and link test.cpp
-      run: g++ -std=c++17 -Iinclude -o test src/test.cpp build/db/database.o
-
     - name: Run test binary
       run: ./test
