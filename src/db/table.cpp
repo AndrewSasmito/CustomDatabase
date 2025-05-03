@@ -1,5 +1,4 @@
 #include "db/table.h"
-#include <iostream>
 
 // Constructor, to initialize the table with column names
 Table::Table(const std::vector<std::string>& columns) : columns(columns) {}
