@@ -15,10 +15,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y g++ cmake
 
     - name: Build using Makefile
-      run: make
-
-    - name: Build and link test.cpp
-      run: g++ -std=c++17 -Iinclude -o test tests/test.cpp build/database.o
+      run: make test
 
     - name: Run test binary
       run: ./test

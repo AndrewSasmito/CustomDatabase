@@ -6,9 +6,13 @@ Table::Table(const std::vector<std::string>& columns) : columns(columns) {}
 
 // Note: these are all temp functions for now
 // Insert a new row into the table
-void Table::insert(const std::vector<std::string>& values) {
+// Return 0 on success, anything else on error
+bool Table::insert(const std::vector<std::string>& values) {
     if (values.size() == columns.size()) {
         rows.push_back(values);
+        return 0;
+    } else {
+        return 1;
     }
 }
 
