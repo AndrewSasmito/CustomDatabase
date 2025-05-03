@@ -14,5 +14,7 @@ int main() { // Simple interface for now
     users->insert({"2", "personB"});
 
     assert(users->printAll().compare("1 personA \n2 personB \n") == 0);
+
+    std::cout << "All tests have successfully passed!\n";
     return 0;
 }
