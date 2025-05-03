@@ -42,7 +42,7 @@ struct fraction {
 
 using VariantType = std::variant<int, float, std::string, fraction>;
 
-// extern types for storage
+// extern types
 extern std::unordered_map<std::string, BTree<int, int>> hashTreeStorage;
 extern std::unordered_map<std::string, BTree<int, int>> intTreeStorage;
 extern std::unordered_map<std::string, BTree<std::string, int>> stringTreeStorage;
