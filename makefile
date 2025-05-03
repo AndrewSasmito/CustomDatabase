@@ -6,7 +6,7 @@ CXXFLAGS = -std=c++17 -Wall -Wextra
 EXEC = database
 
 # Source files
-SRCS = main.cpp Btree.cpp
+SRCS = main.cpp Btree.cpp table.cpp database.cpp
 
 # Object files (replace .cpp with .o)
 OBJS = $(SRCS:.cpp=.o)
