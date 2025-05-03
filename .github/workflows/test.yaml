@@ -17,6 +17,8 @@ jobs:
     - name: Build using Makefile
       run: make
 
-    #- name: Run tests (We have no tests so far)
-    #  run: |
-    #    pytest  # or your preferred test command
+    - name: Build and link test.cpp
+      run: g++ -std=c++17 -Iinclude -o test tests/test.cpp build/database.o
+
+    - name: Run test binary
+      run: ./test
