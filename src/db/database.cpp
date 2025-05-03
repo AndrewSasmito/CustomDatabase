@@ -1,4 +1,4 @@
-#include "database.h"
+#include "db/database.h"
 
 // Create a table with the given name and columns
 void Database::createTable(const std::string& name, const std::vector<std::string>& columns) {

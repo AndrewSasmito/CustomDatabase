@@ -1,5 +1,5 @@
 #include <iostream>
-#include "database.h"
+#include "db/database.h"
 
 int main() { // Simple interface for now
     Database db; // Create db instance
