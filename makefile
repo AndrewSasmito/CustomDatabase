@@ -1,15 +1,19 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra
+CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 
 # Executable name
 EXEC = database
 
 # Source files
-SRCS = main.cpp Btree.cpp table.cpp database.cpp
+SRCS = \
+	src/main.cpp \
+	src/Btree.cpp \
+	src/db/table.cpp \
+	src/db/database.cpp
 
 # Object files (replace .cpp with .o)
-OBJS = $(SRCS:.cpp=.o)
+OBJS = $(SRCS:src/%.cpp=build/%.o)
 
 # Default target: build executable
 all: $(EXEC)
@@ -19,7 +23,8 @@ $(EXEC): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 # Rule to build object files from source files
-%.o: %.cpp
+build/%.o: src/%.cpp
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Clean up generated files
