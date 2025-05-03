@@ -4,6 +4,7 @@
 #include<vector>
 #include<variant>
 #include<string>
+#include "fraction.h"
 
 /*
 *   BTreeNode that stores whether it is a leaf, the key, values and pointer to children
@@ -30,14 +31,15 @@ class BTree {
         int maxKeysPerNode;  // Maximum keys in each node
         BTree(int maxKeys);  // Constructor declaration
         void insert(const KeyType& key, ValueType* value);
-};
+        void deleteKey(const KeyType& key);
+        void insertNonFull(BTreeNode<KeyType, ValueType>* root, const KeyType& key, ValueType* value);
+        void splitChild(BTreeNode<KeyType, ValueType>* parent, int index, BTreeNode<KeyType, ValueType>* child);
 
-/*
-* Fraction format for precise comparison
-*/
-struct fraction {
-    int top;
-    int bottom;
+        void deleteFromNode(BTreeNode<KeyType, ValueType>* node, const KeyType& key);
+        void borrowFromLeft(BTreeNode<KeyType, ValueType>* parent, int index);
+        void borrowFromRight(BTreeNode<KeyType, ValueType>* parent, int index);
+        void mergeNodes(BTreeNode<KeyType, ValueType>* parent, int index);
+
 };
 
 
