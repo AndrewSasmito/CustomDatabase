@@ -1,4 +1,4 @@
-#include "table.h"
+#include "db/table.h"
 #include <iostream>
 
 // Constructor, to initialize the table with column names
