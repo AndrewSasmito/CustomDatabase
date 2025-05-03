@@ -1,0 +1,22 @@
+# .github/workflows/test.yml
+name: C++ Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y g++ cmake
+
+    - name: Build using Makefile
+      run: make
+
+    #- name: Run tests (We have no tests so far)
+    #  run: |
+    #    pytest  # or your preferred test command
