@@ -19,18 +19,14 @@ jobs:
       run: |
         git clone --branch 3.8.1 https://github.com/randombit/botan.git
         cd botan
-        python3 configure.py --prefix=/usr/local --with-debug-info --cc=gcc --cxxflags='-std=c++20'
+        python3 configure.py --prefix=/usr/local --cc=gcc --cxxflags='-std=c++20'
         make -j$(nproc)
         sudo make install
-        cd ..
 
-    - name: Verify Botan installation
-      run: |
-        botan version
-        pkg-config --modversion botan-3
-
-    - name: Build using Makefile
+    - name: Build test binary
       run: make test
 
     - name: Run test binary
+      env:
+        LD_LIBRARY_PATH: /usr/local/lib
       run: ./test
