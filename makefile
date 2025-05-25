@@ -12,7 +12,8 @@ CORE_SRCS = \
 	src/Btree.cpp \
 	src/db/table.cpp \
 	src/db/database.cpp \
-	src/hash_util.cpp
+	src/hash_util.cpp \
+	src/page_manager.cpp
 
 MAIN_SRC = src/main.cpp
 TEST_SRC = src/test.cpp
