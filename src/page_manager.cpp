@@ -40,6 +40,7 @@ bool deleteRecord(Page *page, uint16_t slot_id) {
 
 /*
     When you add or delete a record, you have to update the checksum hash
+
 */
 void updatePageChecksum(Page *page) {
     page->header.checksum = compute_sha256_page_management(page->data);

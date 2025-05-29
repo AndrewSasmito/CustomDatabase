@@ -10,18 +10,17 @@ TEST_EXEC = test
 # Source files (shared between both)
 CORE_SRCS = \
 	src/Btree.cpp \
-	src/db/table.cpp \
 	src/db/database.cpp \
 	src/hash_util.cpp \
 	src/page_manager.cpp
 
 MAIN_SRC = src/main.cpp
-TEST_SRC = src/test.cpp
+TEST_SRC = test/test_insert.cpp
 
 # Object files
 CORE_OBJS = $(CORE_SRCS:src/%.cpp=build/%.o)
 MAIN_OBJ = $(MAIN_SRC:src/%.cpp=build/%.o)
-TEST_OBJ = $(TEST_SRC:src/%.cpp=build/%.o)
+TEST_OBJ = $(TEST_SRC:test/%.cpp=build/%.o)
 
 # Targets
 all: $(MAIN_EXEC)
@@ -39,6 +38,6 @@ build/%.o: src/%.cpp
 
 # Clean
 clean:
-	rm -rf build/ $(MAIN_EXEC) $(TEST_EXEC)
+	rm -rf build/ $(MAIN_EXEC)
 
 .PHONY: all clean
