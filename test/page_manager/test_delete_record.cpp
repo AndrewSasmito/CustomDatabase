@@ -28,7 +28,7 @@ int main(){
     assert(deleteRecord(page, slot.slot_id));
     assert(page->header.checksum != "a");
 
-    insertRecord(&page, record)
+    insertRecord(&page, record);
 
     return 0;
 }
