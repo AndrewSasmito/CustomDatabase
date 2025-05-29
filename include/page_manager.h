@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-
 #include "hash_util.h"
 
 struct PageHeader {
