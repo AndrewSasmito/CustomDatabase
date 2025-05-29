@@ -16,6 +16,8 @@ class BTreeNode {
         std::vector<KeyType> keys;
         std::vector<ValueType*> values;
         std::vector<BTreeNode*> children;
+        int page_id;
+        int slot;
 
         BTreeNode(bool leaf); // Constructor declaration
 };

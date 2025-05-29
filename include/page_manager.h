@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-
 #include "hash_util.h"
 
 struct PageHeader {
@@ -14,6 +13,7 @@ struct PageHeader {
 };
 
 struct SlotEntry {
+    uint8_t id;
     uint16_t offset;  // Offset from start of page
     uint16_t length;  // Length of the record
     uint8_t is_deleted;  // Logical deletion flag

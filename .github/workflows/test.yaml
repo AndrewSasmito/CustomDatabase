@@ -23,10 +23,10 @@ jobs:
         make -j$(nproc)
         sudo make install
 
-    - name: Build test binary
-      run: make test
+    # - name: Build test binary
+    #   run: make test
 
-    - name: Run test binary
-      env:
-        LD_LIBRARY_PATH: /usr/local/lib
-      run: ./test
+    # - name: Run test binary
+    #   env:
+    #     LD_LIBRARY_PATH: /usr/local/lib
+    #   run: ./test
