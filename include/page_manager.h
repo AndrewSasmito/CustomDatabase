@@ -13,7 +13,7 @@ struct PageHeader {
 };
 
 struct SlotEntry {
-    uint8_t id;
+    uint16_t id;
     uint16_t offset;  // Offset from start of page
     uint16_t length;  // Length of the record
     uint8_t is_deleted;  // Logical deletion flag
@@ -25,7 +25,7 @@ struct Page {
     std::vector<uint8_t> data; // Raw bytes of PAGE_SIZE - header/slots
 };
 
-bool insertRecord(Page *page, const void *record, size_t len);
+bool insertRecord(Page *page, const std::vector<uint8_t>& record);
 bool deleteRecord(Page *page, uint16_t slot_id);
 void updatePageChecksum(Page *page);
 
