@@ -16,7 +16,7 @@ make
 
 To test, run:
 ```
-make test
+make tests
 ```
 
 Then go through every executable in `build/tests`
