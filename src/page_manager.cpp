@@ -10,7 +10,7 @@ bool insertRecord(Page *page, const std::vector<uint8_t>& record) {
     uint16_t len = record.size(), slotSize = sizeof(SlotEntry);
     if (page->header.free_space_size < len + slotSize) return false;
 
-    SlotEntry slot = {page->header.free_space_offset, len, false};
+    SlotEntry slot = {page->header.num_slots, page->header.free_space_offset, len, false};
     page->slot_directory.push_back(slot);
     
     page->header.num_slots += 1;
