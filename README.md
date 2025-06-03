@@ -20,3 +20,9 @@ make tests
 ```
 
 Then go through every executable in `build/tests`
+
+
+To get rid of all the object files and executables run:
+```
+make clean
+```
