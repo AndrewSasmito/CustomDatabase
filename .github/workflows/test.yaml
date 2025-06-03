@@ -28,6 +28,7 @@ jobs:
     - name: Run test binary
       env:
         LD_LIBRARY_PATH: /usr/local/lib
-      run: ./build/tests/Test_btree
+      run: |
+        ./build/tests/Test_btree
         ./build/tests/Test_hash
         ./build/tests/Test_page_manager
