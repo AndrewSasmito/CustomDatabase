@@ -24,7 +24,7 @@ jobs:
         sudo make install
 
     - name: Build test binary
-      run: make test
+      run: make tests
     - name: Run test binary
       env:
         LD_LIBRARY_PATH: /usr/local/lib
