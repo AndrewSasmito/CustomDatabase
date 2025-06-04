@@ -11,11 +11,18 @@ Botan 3
 TO compile and run:
 ```
 make
-./database
+./build/database
 ```
 
 To test, run:
 ```
-make test
-./test
+make tests
+```
+
+Then go through every executable in `build/tests`
+
+
+To get rid of all the object files and executables run:
+```
+make clean
 ```
