@@ -28,12 +28,13 @@ class BTreeNode {
 */
 template <typename KeyType, typename ValueType>
 class BTree {
-    private:
-        BTreeNode<KeyType, ValueType>* root;
-        int maxKeysPerNode;  // Maximum keys in each node
+    public:
         BTree(int maxKeys);  // Constructor declaration
         void insert(const KeyType& key, ValueType* value);
         void deleteKey(const KeyType& key);
+    private:
+        BTreeNode<KeyType, ValueType>* root;
+        unsigned int maxKeysPerNode;  // Maximum keys in each node
         void insertNonFull(BTreeNode<KeyType, ValueType>* root, const KeyType& key, ValueType* value);
         BTreeNode<KeyType, ValueType> findKey(BTreeNode<KeyType, ValueType>* root, const KeyType& key);
         void splitChild(BTreeNode<KeyType, ValueType>* parent, int index, BTreeNode<KeyType, ValueType>* child);

@@ -55,7 +55,7 @@ BTreeNode<KeyType, ValueType> BTree<KeyType, ValueType>::findKey(BTreeNode<KeyTy
     }
     if (node->is_leaf) { // If leaf node, just return
         if (idx < node->keys.size() && node->keys[idx] == key) {
-            return node->keys[idx];
+            return node;
         } else {
             // Key not found
             throw std::runtime_error("key not found");
@@ -65,7 +65,7 @@ BTreeNode<KeyType, ValueType> BTree<KeyType, ValueType>::findKey(BTreeNode<KeyTy
         if (idx < node->keys.size() && node->keys[idx] == key) {
             idx++; // move to child that might have key
         }
-        return node->children[idx];     
+        return node;     
     }
 }
 // Function that traverses tree and inserts into a node that isnt full. helper for insert
@@ -244,9 +244,9 @@ void BTree<KeyType, ValueType>::mergeNodes(BTreeNode<KeyType, ValueType>* parent
 
 
 // Explicit template instantiation (to generate the specific versions of the template classes)
-template class BTreeNode<int, std::vector<std::string> *>;
-template class BTree<int, std::vector<std::string> *>;
-template class BTreeNode<std::string, std::vector<std::string> *>;
-template class BTree<std::string, std::vector<std::string> *>;
-template class BTreeNode<fraction, std::vector<std::string> *>;
-template class BTree<fraction, std::vector<std::string> *>;
+template class BTreeNode<int, std::string>;
+template class BTree<int, std::string>;
+template class BTreeNode<std::string, std::string>;
+template class BTree<std::string, std::string>;
+template class BTreeNode<int, int>;
+template class BTree<int, int>;
