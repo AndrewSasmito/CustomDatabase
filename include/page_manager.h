@@ -26,6 +26,7 @@ struct Page {
 };
 
 bool insertRecord(Page *page, const std::vector<uint8_t>& record);
-bool deleteRecord(Page *page, uint16_t slot_id);
+bool deleteRecord(Page *page);
+bool markDeleteRecord(Page *page, uint16_t slot_id);
 void updatePageChecksum(Page *page);
 

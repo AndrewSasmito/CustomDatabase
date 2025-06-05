@@ -4,9 +4,8 @@
 #include <iostream>
 
 int main(){
-    PageHeader page_header = {1, 0, 0, sizeof(SlotEntry) + 3, "", 0};
+    PageHeader page_header = {1, 0, 0, sizeof(SlotEntry) + 2, "", 0};
 
-    std::cout << "Brainiac\n";
     Page page = {page_header, std::vector<SlotEntry> {}, std::vector<uint8_t> {}};
 
     std::vector<uint8_t> record;
@@ -17,8 +16,12 @@ int main(){
 
     std::string pageCurrentHash = page.header.checksum;
 
-    std::cout << "Attempting to delete a record\n";
-    assert(deleteRecord(&page, page.slot_directory[0].id));
+    std::cout << "Marking the slot to be deleted\n";
+    assert(markDeleteRecord(&page, page.slot_directory[0].id));
+
+    std::cout << "Deleting all dirty records\n";
+    std::cout << page.header.free_space_size << '\n';
+    assert(deleteRecord(&page));
 
     std::cout << "Checking that the hash changed\n";
     std::cout << "Hashes: " << page.header.checksum << ' ' << pageCurrentHash << '\n';
@@ -26,6 +29,8 @@ int main(){
 
     // It is full
     std::cout << "Attempting to insert a record into a full page\n";
+    record.push_back(64);
+    std::cout << "Statistics: " << page.header.free_space_size << ' ' << record.size() + sizeof(SlotEntry) << '\n';
     assert(!(insertRecord(&page, record)));
 
     return 0;

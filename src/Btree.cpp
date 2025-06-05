@@ -46,7 +46,28 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, ValueType* value) {
     insertNonFull(root, key, value); // Insert
    
 }
-
+// Find the node that has a key
+template <typename KeyType, typename ValueType>
+BTreeNode<KeyType, ValueType> BTree<KeyType, ValueType>::findKey(BTreeNode<KeyType, ValueType>* node, const KeyType& key){
+    size_t idx = 0; // Index to find the key
+    while (idx < node->keys.size() && key > node->keys[idx]) {
+        idx++;
+    }
+    if (node->is_leaf) { // If leaf node, just return
+        if (idx < node->keys.size() && node->keys[idx] == key) {
+            return node->keys[idx];
+        } else {
+            // Key not found
+            throw std::runtime_error("key not found");
+        }
+    } else { // If not leaf, need to find:w
+    //  the child
+        if (idx < node->keys.size() && node->keys[idx] == key) {
+            idx++; // move to child that might have key
+        }
+        return node->children[idx];     
+    }
+}
 // Function that traverses tree and inserts into a node that isnt full. helper for insert
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insertNonFull(BTreeNode<KeyType, ValueType>* node, const KeyType& key, ValueType* value) {

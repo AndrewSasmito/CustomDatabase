@@ -35,6 +35,7 @@ class BTree {
         void insert(const KeyType& key, ValueType* value);
         void deleteKey(const KeyType& key);
         void insertNonFull(BTreeNode<KeyType, ValueType>* root, const KeyType& key, ValueType* value);
+        BTreeNode<KeyType, ValueType> findKey(BTreeNode<KeyType, ValueType>* root, const KeyType& key);
         void splitChild(BTreeNode<KeyType, ValueType>* parent, int index, BTreeNode<KeyType, ValueType>* child);
 
         void deleteFromNode(BTreeNode<KeyType, ValueType>* node, const KeyType& key);
