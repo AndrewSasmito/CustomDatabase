@@ -19,13 +19,28 @@ struct SlotEntry {
     uint8_t is_deleted;  // Logical deletion flag
 };
 
+template <typename KeyType> 
 struct Page {
     PageHeader header;
+    bool is_leaf;
+
+    // Internal-node-only
+    std::vector<KeyType> keys;
+    std::vector<uint16_t> children; // Page IDs of child pages
+
     std::vector<SlotEntry> slot_directory;
     std::vector<uint8_t> data; // Raw bytes of PAGE_SIZE - header/slots
 };
 
-bool insertRecord(Page *page, const std::vector<uint8_t>& record);
-bool deleteRecord(Page *page, uint16_t slot_id);
-void updatePageChecksum(Page *page);
+template <typename KeyType>
+Page<KeyType> createPage(bool is_leaf);
+
+template <typename KeyType>
+bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record);
+
+template <typename KeyType>
+bool deleteRecord(Page<KeyType> *page, uint16_t slot_id);
+
+template <typename KeyType>
+void updatePageChecksum(Page<KeyType> *page);
 

@@ -6,7 +6,8 @@
 *    
 *   Return true if successful, false otherwise
 */
-bool insertRecord(Page *page, const std::vector<uint8_t>& record) {
+template <typename KeyType>
+bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record) {
     uint16_t len = record.size(), slotSize = sizeof(SlotEntry);
     if (page->header.free_space_size < len + slotSize) return false;
 
@@ -30,7 +31,8 @@ bool insertRecord(Page *page, const std::vector<uint8_t>& record) {
 
     Return true if successful, false otherwise
 */
-bool deleteRecord(Page *page, uint16_t slot_id) {
+template <typename KeyType>
+bool deleteRecord(Page<KeyType> *page, uint16_t slot_id) {
     if (slot_id >= page->header.num_slots || slot_id < 0) return false;
     page->slot_directory[slot_id].is_deleted = true;
 
@@ -42,6 +44,28 @@ bool deleteRecord(Page *page, uint16_t slot_id) {
     When you add or delete a record, you have to update the checksum hash
 
 */
-void updatePageChecksum(Page *page) {
+template <typename KeyType>
+void updatePageChecksum(Page<KeyType> *page) {
     page->header.checksum = compute_sha256_page_management(page->data);
+}
+
+/*
+ * BTreeNode Constructor Implementation
+ */
+template <typename KeyType>
+Page<KeyType> createPage(bool is_leaf) {
+    Page<KeyType> page;
+    page.is_leaf = is_leaf;
+    page.keys = std::vector<KeyType>();
+
+    if (is_leaf) {
+        // Leaf nodes store actual data in values
+        // Children are not used, but we leave the vector empty
+        page.data = std::vector<uint8_t>();
+    } else {
+        // Internal nodes store keys for indexing, and pointers to children
+        // They dont store values
+        page.children = std::vector<uint16_t>();
+    }
+    return page;
 }
