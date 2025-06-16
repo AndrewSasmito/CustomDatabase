@@ -6,7 +6,7 @@ Currently in progress.
 Note that git commit history is not representative of the work distribution, as the majority of the work is done in VSCode Live Share sessions of both of us working on it simultaneously.
 
 Required external libraries:
-Botan 3
+Botan 3, pkg-config
 
 TO compile and run:
 ```
