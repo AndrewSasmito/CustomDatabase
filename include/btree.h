@@ -29,4 +29,6 @@ class BTree {
         void insert(const KeyType& key, ValueType* value);
         void deleteKey(const KeyType& key);
 
+        Page<KeyType> findKey(Page<KeyType>* node, const KeyType& key);
+
 };

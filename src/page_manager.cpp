@@ -42,7 +42,8 @@ bool deleteRecord(Page<KeyType> *page, uint16_t slot_id) {
     Delete all records in the page that are marked for deletion
     Return true if succesfully deleted, false in out of bounds
 */
-bool deleteRecord(Page *page) {
+template <typename KeyType>
+bool deleteRecord(Page<KeyType> *page) {
     std::vector<uint8_t> new_data;
     std::vector<SlotEntry> new_directory;
     for (SlotEntry slot : page->slot_directory){
