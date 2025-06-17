@@ -30,7 +30,7 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, ValueType* value) {
 }
 // Find the node that has a key
 template <typename KeyType, typename ValueType>
-BTreeNode<KeyType, ValueType> BTree<KeyType, ValueType>::findKey(BTreeNode<KeyType, ValueType>* node, const KeyType& key){
+Page<KeyType> BTree<KeyType, ValueType>::findKey(Page<KeyType>* node, const KeyType& key){
     size_t idx = 0; // Index to find the key
     while (idx < node->keys.size() && key > node->keys[idx]) {
         idx++;
