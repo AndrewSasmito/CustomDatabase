@@ -1,48 +1,36 @@
-# Paths and flags
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -Iinclude `pkg-config --cflags botan-3`
-LDLIBS = `pkg-config --libs botan-3`
+CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
+SRCDIR = src
+OBJDIR = obj
 
-# Main executable
-MAIN_EXEC = build/database
+# Source files (only B-tree related files)
+SOURCES = src/Btree.cpp src/main.cpp
+OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
-# Test source files
-TEST_SRC = $(wildcard tests/*/Test_*.cpp)
-TEST_EXECS = $(patsubst %.cpp, build/tests/%, $(notdir $(TEST_SRC)))
+# Target executable
+TARGET = btree_test
 
-# Core sources
-CORE_SRCS = \
-	src/Btree.cpp \
-	src/db/database.cpp \
-	src/hash_util.cpp \
-	src/page_manager.cpp
+# Default target
+all: $(TARGET)
 
-MAIN_SRC = src/main.cpp
-
-# Objects
-CORE_OBJS = $(CORE_SRCS:src/%.cpp=build/%.o)
-MAIN_OBJ = $(MAIN_SRC:src/%.cpp=build/%.o)
-
-# Targets
-all: $(MAIN_EXEC)
-
-$(MAIN_EXEC): $(CORE_OBJS) $(MAIN_OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS)
-
-# Build test executables
-tests: $(TEST_EXECS)
-
-build/tests/%: tests/*/%.cpp $(CORE_OBJS)
-	@mkdir -p build/tests
-	$(CXX) $(CXXFLAGS) -o $@ $(CORE_OBJS) $< $(LDLIBS)
+# Create object directory if it doesn't exist
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
 
 # Compile object files
-build/%.o: src/%.cpp
-	@mkdir -p $(dir $@)
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Clean
-clean:
-	rm -rf build/ $(MAIN_EXEC)
+# Link executable
+$(TARGET): $(OBJECTS)
+	$(CXX) $(OBJECTS) -o $(TARGET)
 
-.PHONY: all clean tests
+# Clean build files
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
+
+# Run the test
+run: $(TARGET)
+	./$(TARGET)
+
+.PHONY: all clean run
