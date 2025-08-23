@@ -32,8 +32,11 @@ class BTree {
         BTree(int maxKeys);  // Constructor declaration
         void insert(const KeyType& key, ValueType* value);
         void deleteKey(const KeyType& key);
+        ValueType* search(const KeyType& key); // Public search method
+        BTreeNode<KeyType, ValueType>* root; // Make root accessible for testing
     private:
-        BTreeNode<KeyType, ValueType>* root;
+        BTreeNode<KeyType, ValueType>* findKeyPtr(BTreeNode<KeyType, ValueType>* node, const KeyType& key); // Helper for search
+    private:
         unsigned int maxKeysPerNode;  // Maximum keys in each node
         void insertNonFull(BTreeNode<KeyType, ValueType>* root, const KeyType& key, ValueType* value);
         BTreeNode<KeyType, ValueType> findKey(BTreeNode<KeyType, ValueType>* root, const KeyType& key);
