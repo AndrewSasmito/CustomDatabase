@@ -34,7 +34,7 @@ int main() {
             std::string value;
             if (iss >> key >> value) {
                 try {
-                    tree.insert(key, new std::string(value));
+                    tree.insert(key, value);
                     std::cout << "Inserted: " << key << " -> " << value << std::endl;
                 } catch (const std::exception& e) {
                     std::cout << "Error inserting: " << e.what() << std::endl;
@@ -62,6 +62,7 @@ int main() {
                 std::string* result = tree.search(key);
                 if (result) {
                     std::cout << "Found key: " << key << " -> " << *result << std::endl;
+                    delete result; // Clean up the allocated memory
                 } else {
                     std::cout << "Key not found: " << key << std::endl;
                 }
