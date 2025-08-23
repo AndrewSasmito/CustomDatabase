@@ -16,7 +16,7 @@ class BTree {
     private:
         Page<KeyType>* root;
         int maxKeysPerNode;  // Maximum keys in each node
-        void insertNonFull(Page<KeyType>* root, const KeyType& key, ValueType* value);
+        void insertNonFull(Page<KeyType>* root, const KeyType& key, const ValueType& value);
         void splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child);
 
         void deleteFromNode(Page<KeyType>* node, const KeyType& key);
@@ -26,8 +26,9 @@ class BTree {
 
     public:
         BTree(int maxKeys);  // Constructor declaration
-        void insert(const KeyType& key, ValueType* value);
+        void insert(const KeyType& key, const ValueType& value);
         void deleteKey(const KeyType& key);
+        ValueType* search(const KeyType& key); // Public search method
 
         Page<KeyType> findKey(Page<KeyType>* node, const KeyType& key);
 

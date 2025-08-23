@@ -1,7 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include "hash_util.h"
+#include <string>
+// #include "hash_util.h"  // Commented out to avoid Botan dependency
 
 struct PageHeader {
     uint16_t page_id;
