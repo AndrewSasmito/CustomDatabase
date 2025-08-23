@@ -21,7 +21,7 @@ bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record) {
         page->data.push_back(info);
     }
     
-    updatePageChecksum(page); // Need to update
+    // updatePageChecksum(page); // Commented out to avoid hash dependency
     return true;
 }
 
@@ -70,7 +70,7 @@ bool deleteRecord(Page<KeyType> *page) {
     page -> slot_directory = new_directory;
     page -> data = new_data;
 
-    updatePageChecksum(page);
+    // updatePageChecksum(page); // Commented out to avoid hash dependency
     return true;
 }
 
@@ -80,7 +80,8 @@ bool deleteRecord(Page<KeyType> *page) {
 */
 template <typename KeyType>
 void updatePageChecksum(Page<KeyType> *page) {
-    page->header.checksum = compute_sha256_page_management(page->data);
+    // page->header.checksum = compute_sha256_page_management(page->data); // Commented out to avoid hash dependency
+    page->header.checksum = "dummy_checksum"; // Placeholder
 }
 
 /*
@@ -103,3 +104,7 @@ Page<KeyType> createPage(bool is_leaf) {
     }
     return page;
 }
+
+// Explicit template instantiations
+template Page<int> createPage<int>(bool);
+template Page<std::string> createPage<std::string>(bool);
