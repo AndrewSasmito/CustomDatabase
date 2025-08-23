@@ -4,7 +4,7 @@ SRCDIR = src
 OBJDIR = obj
 
 # Source files (only B-tree related files)
-SOURCES = src/Btree.cpp src/main.cpp
+SOURCES = src/Btree.cpp src/main.cpp src/page_manager.cpp
 OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Target executable

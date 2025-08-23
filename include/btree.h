@@ -5,22 +5,7 @@
 #include<variant>
 #include<string>
 #include "fraction.h"
-
-/*
-*   BTreeNode that stores whether it is a leaf, the key, values and pointer to children
-*/
-template<typename KeyType, typename ValueType> //Makes it so the types are arbitrary
-class BTreeNode {
-    public:
-        bool is_leaf;
-        std::vector<KeyType> keys;
-        std::vector<ValueType*> values;
-        std::vector<BTreeNode*> children;
-        int page_id;
-        int slot;
-
-        BTreeNode(bool leaf); // Constructor declaration
-};
+#include "page_manager.h"
 
 /*
 *   BTree that stores the BTreeNodes, ensures it is balanced
@@ -28,30 +13,23 @@ class BTreeNode {
 */
 template <typename KeyType, typename ValueType>
 class BTree {
+    private:
+        Page<KeyType>* root;
+        int maxKeysPerNode;  // Maximum keys in each node
+        void insertNonFull(Page<KeyType>* root, const KeyType& key, const ValueType& value);
+        void splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child);
+
+        void deleteFromNode(Page<KeyType>* node, const KeyType& key);
+        void borrowFromLeft(Page<KeyType>* parent, int index);
+        void borrowFromRight(Page<KeyType>* parent, int index);
+        void mergeNodes(Page<KeyType>* parent, int index);
+
     public:
         BTree(int maxKeys);  // Constructor declaration
-        void insert(const KeyType& key, ValueType* value);
+        void insert(const KeyType& key, const ValueType& value);
         void deleteKey(const KeyType& key);
         ValueType* search(const KeyType& key); // Public search method
-        BTreeNode<KeyType, ValueType>* root; // Make root accessible for testing
-    private:
-        BTreeNode<KeyType, ValueType>* findKeyPtr(BTreeNode<KeyType, ValueType>* node, const KeyType& key); // Helper for search
-    private:
-        unsigned int maxKeysPerNode;  // Maximum keys in each node
-        void insertNonFull(BTreeNode<KeyType, ValueType>* root, const KeyType& key, ValueType* value);
-        BTreeNode<KeyType, ValueType> findKey(BTreeNode<KeyType, ValueType>* root, const KeyType& key);
-        void splitChild(BTreeNode<KeyType, ValueType>* parent, int index, BTreeNode<KeyType, ValueType>* child);
 
-        void deleteFromNode(BTreeNode<KeyType, ValueType>* node, const KeyType& key);
-        void borrowFromLeft(BTreeNode<KeyType, ValueType>* parent, int index);
-        void borrowFromRight(BTreeNode<KeyType, ValueType>* parent, int index);
-        void mergeNodes(BTreeNode<KeyType, ValueType>* parent, int index);
+        Page<KeyType> findKey(Page<KeyType>* node, const KeyType& key);
 
 };
-
-
-// extern types for storage
-extern std::unordered_map<std::string, BTree<int, int>> hashTreeStorage;
-extern std::unordered_map<std::string, BTree<int, int>> intTreeStorage;
-extern std::unordered_map<std::string, BTree<std::string, int>> stringTreeStorage;
-extern std::unordered_map<std::string, BTree<fraction, int>> decTreeStorage;
