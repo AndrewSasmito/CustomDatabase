@@ -9,9 +9,8 @@ template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::BTree(int maxKeys) : maxKeysPerNode(maxKeys) {
     // Initially, the tree is empty, so we create a root node
     // and mark it as a leaf (all data starts at the leaf level in B+ Trees)
-    Page<KeyType> root_page = createPage<KeyType>(true);
-    uint16_t root_id = content_storage.storePage(root_page);
-    root = new Page<KeyType>(*content_storage.getPage(root_id));
+    uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
+    root = content_storage.getPage(root_id);
 }
 
 /*
@@ -20,17 +19,16 @@ BTree<KeyType, ValueType>::BTree(int maxKeys) : maxKeysPerNode(maxKeys) {
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& value) {
     if (!root) { // If tree is empty, create a new root
-        Page<KeyType> root_page = createPage<KeyType>(true);
-        uint16_t root_id = content_storage.storePage(root_page);
-        root = new Page<KeyType>(*content_storage.getPage(root_id));
+        uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
+        root = content_storage.getPage(root_id);
     } else if (root->keys.size() == maxKeysPerNode) { // Check if the root is full
         Page<KeyType> new_root_page = createPage<KeyType>(false);
         new_root_page.children.push_back(root->header.page_id); // Page ID of the old root
-        splitChild(&new_root_page, 0, root); // Split child bc of overflow
+        splitChild(std::make_shared<Page<KeyType>>(new_root_page), 0, root); // Split child bc of overflow
         
         // Store the new root in content storage
         uint16_t new_root_id = content_storage.storePage(new_root_page);
-        root = new Page<KeyType>(*content_storage.getPage(new_root_id));
+        root = content_storage.getPage(new_root_id);
     }
     // Now the root is guaranteed to not be empty
     insertNonFull(root, key, value); // Insert
@@ -39,7 +37,7 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& valu
 
 // Find the node that has a key
 template <typename KeyType, typename ValueType>
-Page<KeyType> BTree<KeyType, ValueType>::findKey(Page<KeyType>* node, const KeyType& key){
+Page<KeyType> BTree<KeyType, ValueType>::findKey(std::shared_ptr<Page<KeyType>> node, const KeyType& key){
     size_t idx = 0; // Index to find the key
     while (idx < node->keys.size() && key > node->keys[idx]) {
         idx++;
@@ -59,7 +57,7 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(Page<KeyType>* node, const KeyT
             // Load child page from content storage
             auto child_page = content_storage.getPage(node->children[idx]);
             if (child_page) {
-                return findKey(child_page.get(), key);
+                return findKey(child_page, key);
             } else {
                 throw std::runtime_error("child page not found");
             }
@@ -71,7 +69,7 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(Page<KeyType>* node, const KeyT
 
 // Function that traverses tree and inserts into a node that isnt full. helper for insert
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::insertNonFull(Page<KeyType>* node, const KeyType& key, const ValueType& value) {
+void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> node, const KeyType& key, const ValueType& value) {
     int i = node->keys.size() - 1; // Start from the last key
 
     if (node->is_leaf) { // If its a leaf node, insert the key and value
@@ -117,18 +115,18 @@ void BTree<KeyType, ValueType>::insertNonFull(Page<KeyType>* node, const KeyType
         }
         
         if (child_page->keys.size() == maxKeysPerNode) { // If the child is full, split it
-            splitChild(node, i, child_page.get());
+            splitChild(node, i, child_page);
             if (key > node->keys[i]) i++; // Check which child to go to after split
         }
 
         // Recursively insert into child
-        insertNonFull(child_page.get(), key, value);
+        insertNonFull(child_page, key, value);
     }
 }
 
 // Function to split a child node in case its full. helper for insert
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child) {
+void BTree<KeyType, ValueType>::splitChild(std::shared_ptr<Page<KeyType>> parent, int index, std::shared_ptr<Page<KeyType>> child) {
     int mid = maxKeysPerNode / 2; // Remember b+tree property
 
     Page<KeyType> new_child_page = createPage<KeyType>(child->is_leaf);
@@ -155,6 +153,7 @@ void BTree<KeyType, ValueType>::splitChild(Page<KeyType>* parent, int index, Pag
     parent->children.insert(parent->children.begin() + index + 1, new_child_id); // Insert new child page ID
     parent->keys.insert(parent->keys.begin() + index, child->keys[mid]); // Insert the mid key into parent
     
+    // Update child's page ID
     child->header.page_id = child_id;
 }
 
@@ -166,21 +165,20 @@ void BTree<KeyType, ValueType>::deleteKey(const KeyType& key) {
 
     // If root is now empty and has a child, make child the new root
     if (!root->is_leaf && root->keys.empty()) {
-        Page<KeyType>* oldRoot = root; // Store old root
         auto child_page = content_storage.getPage(root->children[0]);
         if (child_page) {
-            root = new Page<KeyType>(*child_page);
+            root = child_page;
         } else {
-            root = new Page<KeyType>(createPage<KeyType>(true)); // For now, create new empty root
+            uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
+            root = content_storage.getPage(root_id);
         }
-        delete oldRoot; // Free the old root
     }
 }
 
 // Helper function to delete key from node
 // Pretty complex, but it handles the case of underflow and merging nodes. Search, delete
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyType& key) {
+void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> node, const KeyType& key) {
     size_t idx = 0; // Index to find the key
     while (idx < node->keys.size() && key > node->keys[idx]) { // Traverse to find key
         idx++;
@@ -213,7 +211,7 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
             throw std::runtime_error("child page not found");
         }
         
-        deleteFromNode(child_page.get(), key); // Delete from child
+        deleteFromNode(child_page, key); // Delete from child
 
         // Fix underflow (not enough keys in child)
         if (child_page->keys.size() < (maxKeysPerNode + 1) / 2) {
@@ -225,7 +223,7 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
 // Borrow from left and right siblings
 
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index) {
+void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> parent, int index) {
     auto child_page = content_storage.getPage(parent->children[index]);
     auto sibling_page = content_storage.getPage(parent->children[index - 1]);
     
@@ -233,8 +231,8 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
         throw std::runtime_error("child or sibling page not found");
     }
     
-    Page<KeyType>* child = child_page.get();
-    Page<KeyType>* sibling = sibling_page.get();
+    std::shared_ptr<Page<KeyType>> child = child_page;
+    std::shared_ptr<Page<KeyType>> sibling = sibling_page;
 
     if (child->is_leaf) { // If leaf, just borrow the last key from sibling
         child->keys.insert(child->keys.begin(), sibling->keys.back()); // Insert at the beginning
@@ -272,7 +270,7 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
 }
 
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index) {
+void BTree<KeyType, ValueType>::borrowFromRight(std::shared_ptr<Page<KeyType>> parent, int index) {
     auto child_page = content_storage.getPage(parent->children[index]);
     auto sibling_page = content_storage.getPage(parent->children[index + 1]);
     
@@ -280,8 +278,8 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
         throw std::runtime_error("child or sibling page not found");
     }
     
-    Page<KeyType>* child = child_page.get();
-    Page<KeyType>* sibling = sibling_page.get();
+    std::shared_ptr<Page<KeyType>> child = child_page;
+    std::shared_ptr<Page<KeyType>> sibling = sibling_page;
 
     if (child->is_leaf) { // If leaf, just borrow the first key from sibling
         child->keys.push_back(sibling->keys.front());
@@ -319,7 +317,7 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
 
 // Merge two nodes
 template <typename KeyType, typename ValueType>
-void BTree<KeyType, ValueType>::mergeNodes(Page<KeyType>* parent, int index) {
+void BTree<KeyType, ValueType>::mergeNodes(std::shared_ptr<Page<KeyType>> parent, int index) {
     auto left_page = content_storage.getPage(parent->children[index]);
     auto right_page = content_storage.getPage(parent->children[index + 1]);
     
@@ -327,8 +325,8 @@ void BTree<KeyType, ValueType>::mergeNodes(Page<KeyType>* parent, int index) {
         throw std::runtime_error("left or right page not found");
     }
     
-    Page<KeyType>* left = left_page.get();
-    Page<KeyType>* right = right_page.get();
+    std::shared_ptr<Page<KeyType>> left = left_page;
+    std::shared_ptr<Page<KeyType>> right = right_page;
 
     if (!left->is_leaf) { // If not leaf, merge keys and children
         left->keys.push_back(parent->keys[index]); // Move the parent key down
