@@ -4,6 +4,7 @@
 #include<vector>
 #include<variant>
 #include<string>
+#include<memory>
 #include "fraction.h"
 #include "page_manager.h"
 #include "content_storage.h"
@@ -15,17 +16,17 @@
 template <typename KeyType, typename ValueType>
 class BTree {
     private:
-        Page<KeyType>* root;
+        std::shared_ptr<Page<KeyType>> root;
         int maxKeysPerNode;  // Maximum keys in each node
         ContentStorage<KeyType> content_storage;
         
-        void insertNonFull(Page<KeyType>* root, const KeyType& key, const ValueType& value);
-        void splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child);
+        void insertNonFull(std::shared_ptr<Page<KeyType>> root, const KeyType& key, const ValueType& value);
+        void splitChild(std::shared_ptr<Page<KeyType>> parent, int index, std::shared_ptr<Page<KeyType>> child);
 
-        void deleteFromNode(Page<KeyType>* node, const KeyType& key);
-        void borrowFromLeft(Page<KeyType>* parent, int index);
-        void borrowFromRight(Page<KeyType>* parent, int index);
-        void mergeNodes(Page<KeyType>* parent, int index);
+        void deleteFromNode(std::shared_ptr<Page<KeyType>> node, const KeyType& key);
+        void borrowFromLeft(std::shared_ptr<Page<KeyType>> parent, int index);
+        void borrowFromRight(std::shared_ptr<Page<KeyType>> parent, int index);
+        void mergeNodes(std::shared_ptr<Page<KeyType>> parent, int index);
 
     public:
         BTree(int maxKeys);
@@ -34,6 +35,6 @@ class BTree {
         ValueType* search(const KeyType& key); // Public search method
         void printStorageStats() const;
 
-        Page<KeyType> findKey(Page<KeyType>* node, const KeyType& key);
+        Page<KeyType> findKey(std::shared_ptr<Page<KeyType>> node, const KeyType& key);
 
 };
