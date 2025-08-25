@@ -87,6 +87,10 @@ void BTree<KeyType, ValueType>::insertNonFull(Page<KeyType>* node, const KeyType
                 std::swap(node->data[offset1 + k], node->data[offset2 + k]);
             }
         }
+        
+        // Update content hash after modifying the page
+        node->updateContentHash();
+        
     } else {
         // Find child to descend into
         while (i >= 0 && key < node->keys[i])
@@ -126,6 +130,10 @@ void BTree<KeyType, ValueType>::splitChild(Page<KeyType>* parent, int index, Pag
     // Insert new child into parent
     parent->children.insert(parent->children.begin() + index + 1, 1); // Insert new child page ID
     parent->keys.insert(parent->keys.begin() + index, child->keys[mid]); // Insert the mid key into parent
+    
+    child->updateContentHash();
+    newChild->updateContentHash();
+    parent->updateContentHash();
 }
 
 // Helper function to delete a key
@@ -159,6 +167,8 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
             size_t value_size = sizeof(ValueType);
             size_t start_offset = idx * value_size;
             node->data.erase(node->data.begin() + start_offset, node->data.begin() + start_offset + value_size);
+            
+            node->updateContentHash();
         } else {
             // Key not found
             return;
@@ -198,6 +208,10 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
         sibling->keys.pop_back(); // Remove the last key from sibling
         sibling->data.resize(sibling->data.size() - value_size); // Remove the last value from sibling
         parent->keys[index - 1] = child->keys[0]; // Update the parent key
+        
+        child->updateContentHash();
+        sibling->updateContentHash();
+        parent->updateContentHash();
     } else { // If not leaf, borrow the last key and child pointer
         child->keys.insert(child->keys.begin(), parent->keys[index - 1]);
         parent->keys[index - 1] = sibling->keys.back(); // Update the parent key
@@ -205,6 +219,10 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
 
         child->children.insert(child->children.begin(), sibling->children.back());
         sibling->children.pop_back();
+        
+        child->updateContentHash();
+        sibling->updateContentHash();
+        parent->updateContentHash();
     }
 }
 
@@ -225,6 +243,10 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
         sibling->keys.erase(sibling->keys.begin());
         sibling->data.erase(sibling->data.begin(), sibling->data.begin() + value_size);
         parent->keys[index] = sibling->keys.front();
+        
+        child->updateContentHash();
+        sibling->updateContentHash();
+        parent->updateContentHash();
     } else { // If not leaf, borrow the first key and child pointer
         child->keys.push_back(parent->keys[index]);
         parent->keys[index] = sibling->keys.front();
@@ -232,6 +254,10 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
 
         child->children.push_back(sibling->children.front());
         sibling->children.erase(sibling->children.begin());
+        
+        child->updateContentHash();
+        sibling->updateContentHash();
+        parent->updateContentHash();
     }
 }
 
@@ -252,6 +278,9 @@ void BTree<KeyType, ValueType>::mergeNodes(Page<KeyType>* parent, int index) {
 
     parent->keys.erase(parent->keys.begin() + index); // Remove the parent key
     parent->children.erase(parent->children.begin() + index + 1); // Remove the right child
+
+    left->updateContentHash();
+    parent->updateContentHash();
 }
 
 // Public search method

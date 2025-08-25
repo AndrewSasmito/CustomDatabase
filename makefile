@@ -7,11 +7,16 @@ OBJDIR = obj
 SOURCES = src/Btree.cpp src/main.cpp src/page_manager.cpp
 OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
-# Target executable
+# Demo source files
+DEMO_SOURCES = src/Btree.cpp src/content_hash_demo.cpp src/page_manager.cpp
+DEMO_OBJECTS = $(DEMO_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+
+# Target executables
 TARGET = btree_test
+DEMO_TARGET = content_hash_demo
 
 # Default target
-all: $(TARGET)
+all: $(TARGET) $(DEMO_TARGET)
 
 # Create object directory if it doesn't exist
 $(OBJDIR):
@@ -21,16 +26,24 @@ $(OBJDIR):
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Link executable
+# Link main executable
 $(TARGET): $(OBJECTS)
 	$(CXX) $(OBJECTS) -o $(TARGET)
 
+# Link demo executable
+$(DEMO_TARGET): $(DEMO_OBJECTS)
+	$(CXX) $(DEMO_OBJECTS) -o $(DEMO_TARGET)
+
 # Clean build files
 clean:
-	rm -rf $(OBJDIR) $(TARGET)
+	rm -rf $(OBJDIR) $(TARGET) $(DEMO_TARGET)
 
 # Run the test
 run: $(TARGET)
 	./$(TARGET)
 
-.PHONY: all clean run
+# Run the demo
+demo: $(DEMO_TARGET)
+	./$(DEMO_TARGET)
+
+.PHONY: all clean run demo
