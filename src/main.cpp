@@ -10,6 +10,7 @@ int main() {
     std::cout << "  delete <key>          - Delete a key" << std::endl;
     std::cout << "  search <key>          - Search for a key" << std::endl;
     std::cout << "  print                 - Print tree structure" << std::endl;
+    std::cout << "  stats                 - Show storage statistics" << std::endl;
     std::cout << "  quit                  - Exit" << std::endl;
     std::cout << "=====================================" << std::endl;
 
@@ -74,12 +75,15 @@ int main() {
             std::cout << "Tree structure (simplified):" << std::endl;
             std::cout << "B-tree with max " << 3 << " keys per node" << std::endl;
         }
+        else if (cmd == "stats") {
+            tree.printStorageStats();
+        }
         else if (cmd.empty()) {
             continue;
         }
         else {
             std::cout << "Unknown command: " << cmd << std::endl;
-            std::cout << "Available commands: insert, delete, search, print, quit" << std::endl;
+            std::cout << "Available commands: insert, delete, search, print, stats, quit" << std::endl;
         }
     }
     
