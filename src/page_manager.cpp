@@ -21,6 +21,9 @@ bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record) {
         page->data.push_back(info);
     }
     
+    // Update content hash after modifying page content
+    page->updateContentHash();
+    
     // updatePageChecksum(page); // Commented out to avoid hash dependency
     return true;
 }
@@ -35,6 +38,9 @@ bool deleteRecord(Page<KeyType> *page, uint16_t slot_id) {
     if (slot_id >= page->header.num_slots || slot_id < 0) return false;
     page->slot_directory[slot_id].is_deleted = true;
 
+    // Update content hash after modifying page content
+    page->updateContentHash();
+    
     return true;
 }
 
@@ -70,6 +76,9 @@ bool deleteRecord(Page<KeyType> *page) {
     page -> slot_directory = new_directory;
     page -> data = new_data;
 
+    // Update content hash after modifying page content
+    page->updateContentHash();
+
     // updatePageChecksum(page); // Commented out to avoid hash dependency
     return true;
 }
@@ -102,6 +111,10 @@ Page<KeyType> createPage(bool is_leaf) {
         // They dont store values
         page.children = std::vector<uint16_t>();
     }
+    
+    // Initialize content hash for the empty page
+    page.updateContentHash();
+    
     return page;
 }
 
