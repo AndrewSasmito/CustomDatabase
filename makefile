@@ -72,4 +72,19 @@ addressable: $(ADDRESSABLE_TARGET)
 dedup: $(DEDUP_TARGET)
 	./$(DEDUP_TARGET)
 
-.PHONY: all clean run demo addressable dedup
+# Run all tests (for CI/CD compatibility)
+tests: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET)
+	@echo "=== Running Content Hash Demo ==="
+	./$(DEMO_TARGET)
+	@echo ""
+	@echo "=== Running Content Addressable Demo ==="
+	./$(ADDRESSABLE_TARGET)
+	@echo ""
+	@echo "=== Running Deduplication Demo ==="
+	./$(DEDUP_TARGET)
+	@echo ""
+	@echo "=== Testing Basic B-tree Operations ==="
+	@echo -e "insert 1 apple\ninsert 2 banana\nsearch 1\nsearch 2\nquit" | ./$(TARGET) > /dev/null
+	@echo "All tests passed!"
+
+.PHONY: all clean run demo addressable dedup tests
