@@ -6,6 +6,7 @@
 #include<string>
 #include "fraction.h"
 #include "page_manager.h"
+#include "content_storage.h"
 
 /*
 *   BTree that stores the BTreeNodes, ensures it is balanced
@@ -16,6 +17,8 @@ class BTree {
     private:
         Page<KeyType>* root;
         int maxKeysPerNode;  // Maximum keys in each node
+        ContentStorage<KeyType> content_storage;
+        
         void insertNonFull(Page<KeyType>* root, const KeyType& key, const ValueType& value);
         void splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child);
 
@@ -25,10 +28,11 @@ class BTree {
         void mergeNodes(Page<KeyType>* parent, int index);
 
     public:
-        BTree(int maxKeys);  // Constructor declaration
+        BTree(int maxKeys);
         void insert(const KeyType& key, const ValueType& value);
         void deleteKey(const KeyType& key);
         ValueType* search(const KeyType& key); // Public search method
+        void printStorageStats() const;
 
         Page<KeyType> findKey(Page<KeyType>* node, const KeyType& key);
 
