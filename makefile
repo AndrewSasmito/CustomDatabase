@@ -11,12 +11,22 @@ OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 DEMO_SOURCES = src/Btree.cpp src/content_hash_demo.cpp src/page_manager.cpp
 DEMO_OBJECTS = $(DEMO_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
+# Content addressable demo
+ADDRESSABLE_SOURCES = src/Btree.cpp src/content_addressable_demo.cpp src/page_manager.cpp
+ADDRESSABLE_OBJECTS = $(ADDRESSABLE_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+
+# Deduplication demo
+DEDUP_SOURCES = src/Btree.cpp src/deduplication_demo.cpp src/page_manager.cpp
+DEDUP_OBJECTS = $(DEDUP_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+
 # Target executables
 TARGET = btree_test
 DEMO_TARGET = content_hash_demo
+ADDRESSABLE_TARGET = content_addressable_demo
+DEDUP_TARGET = deduplication_demo
 
 # Default target
-all: $(TARGET) $(DEMO_TARGET)
+all: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET)
 
 # Create object directory if it doesn't exist
 $(OBJDIR):
@@ -34,9 +44,17 @@ $(TARGET): $(OBJECTS)
 $(DEMO_TARGET): $(DEMO_OBJECTS)
 	$(CXX) $(DEMO_OBJECTS) -o $(DEMO_TARGET)
 
+# Link addressable demo executable
+$(ADDRESSABLE_TARGET): $(ADDRESSABLE_OBJECTS)
+	$(CXX) $(ADDRESSABLE_OBJECTS) -o $(ADDRESSABLE_TARGET)
+
+# Link deduplication demo executable
+$(DEDUP_TARGET): $(DEDUP_OBJECTS)
+	$(CXX) $(DEDUP_OBJECTS) -o $(DEDUP_TARGET)
+
 # Clean build files
 clean:
-	rm -rf $(OBJDIR) $(TARGET) $(DEMO_TARGET)
+	rm -rf $(OBJDIR) $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET)
 
 # Run the test
 run: $(TARGET)
@@ -46,4 +64,12 @@ run: $(TARGET)
 demo: $(DEMO_TARGET)
 	./$(DEMO_TARGET)
 
-.PHONY: all clean run demo
+# Run the addressable demo
+addressable: $(ADDRESSABLE_TARGET)
+	./$(ADDRESSABLE_TARGET)
+
+# Run the deduplication demo
+dedup: $(DEDUP_TARGET)
+	./$(DEDUP_TARGET)
+
+.PHONY: all clean run demo addressable dedup

@@ -9,7 +9,9 @@ template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::BTree(int maxKeys) : maxKeysPerNode(maxKeys) {
     // Initially, the tree is empty, so we create a root node
     // and mark it as a leaf (all data starts at the leaf level in B+ Trees)
-    root = new Page<KeyType>(createPage<KeyType>(true));
+    Page<KeyType> root_page = createPage<KeyType>(true);
+    uint16_t root_id = content_storage.storePage(root_page);
+    root = new Page<KeyType>(*content_storage.getPage(root_id));
 }
 
 /*
@@ -18,12 +20,17 @@ BTree<KeyType, ValueType>::BTree(int maxKeys) : maxKeysPerNode(maxKeys) {
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& value) {
     if (!root) { // If tree is empty, create a new root
-        root = new Page<KeyType>(createPage<KeyType>(true));
+        Page<KeyType> root_page = createPage<KeyType>(true);
+        uint16_t root_id = content_storage.storePage(root_page);
+        root = new Page<KeyType>(*content_storage.getPage(root_id));
     } else if (root->keys.size() == maxKeysPerNode) { // Check if the root is full
-        Page<KeyType>* newRoot = new Page<KeyType>(createPage<KeyType>(false));
-        newRoot->children.push_back(0); // Page ID of the old root
-        splitChild(newRoot, 0, root); // Split child bc of overflow
-        root = newRoot; // Update the root to be the new node
+        Page<KeyType> new_root_page = createPage<KeyType>(false);
+        new_root_page.children.push_back(root->header.page_id); // Page ID of the old root
+        splitChild(&new_root_page, 0, root); // Split child bc of overflow
+        
+        // Store the new root in content storage
+        uint16_t new_root_id = content_storage.storePage(new_root_page);
+        root = new Page<KeyType>(*content_storage.getPage(new_root_id));
     }
     // Now the root is guaranteed to not be empty
     insertNonFull(root, key, value); // Insert
@@ -49,8 +56,13 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(Page<KeyType>* node, const KeyT
             idx++; // move to child that might have key
         }
         if (idx < node->children.size()) {
-            // For now, we'll just return the current node since we don't have page loading
-            return *node;
+            // Load child page from content storage
+            auto child_page = content_storage.getPage(node->children[idx]);
+            if (child_page) {
+                return findKey(child_page.get(), key);
+            } else {
+                throw std::runtime_error("child page not found");
+            }
         } else {
             throw std::runtime_error("key not found");
         }
@@ -88,8 +100,9 @@ void BTree<KeyType, ValueType>::insertNonFull(Page<KeyType>* node, const KeyType
             }
         }
         
-        // Update content hash after modifying the page
-        node->updateContentHash();
+        // Store the modified page in content storage
+        uint16_t new_page_id = content_storage.storePage(*node);
+        node->header.page_id = new_page_id;
         
     } else {
         // Find child to descend into
@@ -97,12 +110,19 @@ void BTree<KeyType, ValueType>::insertNonFull(Page<KeyType>* node, const KeyType
             i--;
         i++;
 
-        if (node->children[i] != 0 && node->children[i] < maxKeysPerNode) { // If the child is full, split it
-            splitChild(node, i, root); // For now, just use root as placeholder
+        // Load child page from content storage
+        auto child_page = content_storage.getPage(node->children[i]);
+        if (!child_page) {
+            throw std::runtime_error("child page not found");
+        }
+        
+        if (child_page->keys.size() == maxKeysPerNode) { // If the child is full, split it
+            splitChild(node, i, child_page.get());
             if (key > node->keys[i]) i++; // Check which child to go to after split
         }
 
-        insertNonFull(root, key, value); // Use recursion to insert in the child
+        // Recursively insert into child
+        insertNonFull(child_page.get(), key, value);
     }
 }
 
@@ -111,29 +131,31 @@ template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::splitChild(Page<KeyType>* parent, int index, Page<KeyType>* child) {
     int mid = maxKeysPerNode / 2; // Remember b+tree property
 
-    Page<KeyType>* newChild = new Page<KeyType>(createPage<KeyType>(child->is_leaf));
+    Page<KeyType> new_child_page = createPage<KeyType>(child->is_leaf);
 
     // Copy second half of keys/values to the new node
-    newChild->keys.assign(child->keys.begin() + mid + 1, child->keys.end()); // Copy keys
+    new_child_page.keys.assign(child->keys.begin() + mid + 1, child->keys.end()); // Copy keys
     child->keys.resize(mid); // Keep the mid key in left for b+ tree
 
     if (child->is_leaf) { // If its a leaf, assign values
         size_t value_size = sizeof(ValueType);
         size_t start_offset = (mid + 1) * value_size;
-        newChild->data.assign(child->data.begin() + start_offset, child->data.end());
+        new_child_page.data.assign(child->data.begin() + start_offset, child->data.end());
         child->data.resize((mid + 1) * value_size);  // Keep the mid key in left for b+ tree
     } else { // If not leaf, copy children
-        newChild->children.assign(child->children.begin() + mid + 1, child->children.end());
+        new_child_page.children.assign(child->children.begin() + mid + 1, child->children.end());
         child->children.resize(mid + 1);
     }
 
-    // Insert new child into parent
-    parent->children.insert(parent->children.begin() + index + 1, 1); // Insert new child page ID
+    // Store both modified pages in content storage
+    uint16_t child_id = content_storage.storePage(*child);
+    uint16_t new_child_id = content_storage.storePage(new_child_page);
+    
+    // Update parent
+    parent->children.insert(parent->children.begin() + index + 1, new_child_id); // Insert new child page ID
     parent->keys.insert(parent->keys.begin() + index, child->keys[mid]); // Insert the mid key into parent
     
-    child->updateContentHash();
-    newChild->updateContentHash();
-    parent->updateContentHash();
+    child->header.page_id = child_id;
 }
 
 // Helper function to delete a key
@@ -145,7 +167,12 @@ void BTree<KeyType, ValueType>::deleteKey(const KeyType& key) {
     // If root is now empty and has a child, make child the new root
     if (!root->is_leaf && root->keys.empty()) {
         Page<KeyType>* oldRoot = root; // Store old root
-        root = new Page<KeyType>(createPage<KeyType>(true)); // For now, create new empty root
+        auto child_page = content_storage.getPage(root->children[0]);
+        if (child_page) {
+            root = new Page<KeyType>(*child_page);
+        } else {
+            root = new Page<KeyType>(createPage<KeyType>(true)); // For now, create new empty root
+        }
         delete oldRoot; // Free the old root
     }
 }
@@ -168,7 +195,9 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
             size_t start_offset = idx * value_size;
             node->data.erase(node->data.begin() + start_offset, node->data.begin() + start_offset + value_size);
             
-            node->updateContentHash();
+            // Store the modified page in content storage
+            uint16_t new_page_id = content_storage.storePage(*node);
+            node->header.page_id = new_page_id;
         } else {
             // Key not found
             return;
@@ -178,11 +207,16 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
             idx++; // move to child that might have key
         }
 
-        // For now, just delete from root since we don't have proper child loading
-        deleteFromNode(root, key); // Delete from child
+        // Load child page from content storage
+        auto child_page = content_storage.getPage(node->children[idx]);
+        if (!child_page) {
+            throw std::runtime_error("child page not found");
+        }
+        
+        deleteFromNode(child_page.get(), key); // Delete from child
 
         // Fix underflow (not enough keys in child)
-        if (root->keys.size() < (maxKeysPerNode + 1) / 2) {
+        if (child_page->keys.size() < (maxKeysPerNode + 1) / 2) {
             // For now, just leave as is since we don't have proper sibling handling
         }
     }
@@ -192,8 +226,15 @@ void BTree<KeyType, ValueType>::deleteFromNode(Page<KeyType>* node, const KeyTyp
 
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index) {
-    Page<KeyType>* child = parent->children[index] == 0 ? root : root; // For now, use root
-    Page<KeyType>* sibling = parent->children[index - 1] == 0 ? root : root; // For now, use root
+    auto child_page = content_storage.getPage(parent->children[index]);
+    auto sibling_page = content_storage.getPage(parent->children[index - 1]);
+    
+    if (!child_page || !sibling_page) {
+        throw std::runtime_error("child or sibling page not found");
+    }
+    
+    Page<KeyType>* child = child_page.get();
+    Page<KeyType>* sibling = sibling_page.get();
 
     if (child->is_leaf) { // If leaf, just borrow the last key from sibling
         child->keys.insert(child->keys.begin(), sibling->keys.back()); // Insert at the beginning
@@ -209,9 +250,11 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
         sibling->data.resize(sibling->data.size() - value_size); // Remove the last value from sibling
         parent->keys[index - 1] = child->keys[0]; // Update the parent key
         
-        child->updateContentHash();
-        sibling->updateContentHash();
-        parent->updateContentHash();
+        // Store modified pages in content storage
+        uint16_t child_id = content_storage.storePage(*child);
+        uint16_t sibling_id = content_storage.storePage(*sibling);
+        child->header.page_id = child_id;
+        sibling->header.page_id = sibling_id;
     } else { // If not leaf, borrow the last key and child pointer
         child->keys.insert(child->keys.begin(), parent->keys[index - 1]);
         parent->keys[index - 1] = sibling->keys.back(); // Update the parent key
@@ -220,16 +263,25 @@ void BTree<KeyType, ValueType>::borrowFromLeft(Page<KeyType>* parent, int index)
         child->children.insert(child->children.begin(), sibling->children.back());
         sibling->children.pop_back();
         
-        child->updateContentHash();
-        sibling->updateContentHash();
-        parent->updateContentHash();
+        // Store modified pages in content storage
+        uint16_t child_id = content_storage.storePage(*child);
+        uint16_t sibling_id = content_storage.storePage(*sibling);
+        child->header.page_id = child_id;
+        sibling->header.page_id = sibling_id;
     }
 }
 
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index) {
-    Page<KeyType>* child = parent->children[index] == 0 ? root : root; // For now, use root
-    Page<KeyType>* sibling = parent->children[index + 1] == 0 ? root : root; // For now, use root
+    auto child_page = content_storage.getPage(parent->children[index]);
+    auto sibling_page = content_storage.getPage(parent->children[index + 1]);
+    
+    if (!child_page || !sibling_page) {
+        throw std::runtime_error("child or sibling page not found");
+    }
+    
+    Page<KeyType>* child = child_page.get();
+    Page<KeyType>* sibling = sibling_page.get();
 
     if (child->is_leaf) { // If leaf, just borrow the first key from sibling
         child->keys.push_back(sibling->keys.front());
@@ -244,9 +296,11 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
         sibling->data.erase(sibling->data.begin(), sibling->data.begin() + value_size);
         parent->keys[index] = sibling->keys.front();
         
-        child->updateContentHash();
-        sibling->updateContentHash();
-        parent->updateContentHash();
+        // Store modified pages in content storage
+        uint16_t child_id = content_storage.storePage(*child);
+        uint16_t sibling_id = content_storage.storePage(*sibling);
+        child->header.page_id = child_id;
+        sibling->header.page_id = sibling_id;
     } else { // If not leaf, borrow the first key and child pointer
         child->keys.push_back(parent->keys[index]);
         parent->keys[index] = sibling->keys.front();
@@ -255,17 +309,26 @@ void BTree<KeyType, ValueType>::borrowFromRight(Page<KeyType>* parent, int index
         child->children.push_back(sibling->children.front());
         sibling->children.erase(sibling->children.begin());
         
-        child->updateContentHash();
-        sibling->updateContentHash();
-        parent->updateContentHash();
+        // Store modified pages in content storage
+        uint16_t child_id = content_storage.storePage(*child);
+        uint16_t sibling_id = content_storage.storePage(*sibling);
+        child->header.page_id = child_id;
+        sibling->header.page_id = sibling_id;
     }
 }
 
 // Merge two nodes
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::mergeNodes(Page<KeyType>* parent, int index) {
-    Page<KeyType>* left = parent->children[index] == 0 ? root : root; // For now, use root
-    Page<KeyType>* right = parent->children[index + 1] == 0 ? root : root; // For now, use root
+    auto left_page = content_storage.getPage(parent->children[index]);
+    auto right_page = content_storage.getPage(parent->children[index + 1]);
+    
+    if (!left_page || !right_page) {
+        throw std::runtime_error("left or right page not found");
+    }
+    
+    Page<KeyType>* left = left_page.get();
+    Page<KeyType>* right = right_page.get();
 
     if (!left->is_leaf) { // If not leaf, merge keys and children
         left->keys.push_back(parent->keys[index]); // Move the parent key down
@@ -278,9 +341,10 @@ void BTree<KeyType, ValueType>::mergeNodes(Page<KeyType>* parent, int index) {
 
     parent->keys.erase(parent->keys.begin() + index); // Remove the parent key
     parent->children.erase(parent->children.begin() + index + 1); // Remove the right child
-
-    left->updateContentHash();
-    parent->updateContentHash();
+    
+    // Store modified pages in content storage
+    uint16_t left_id = content_storage.storePage(*left);
+    left->header.page_id = left_id;
 }
 
 // Public search method
@@ -307,6 +371,12 @@ ValueType* BTree<KeyType, ValueType>::search(const KeyType& key) {
     } catch (const std::runtime_error& e) {
         return nullptr;
     }
+}
+
+// Print storage statistics
+template <typename KeyType, typename ValueType>
+void BTree<KeyType, ValueType>::printStorageStats() const {
+    content_storage.printStats();
 }
 
 // Explicit template instantiations
