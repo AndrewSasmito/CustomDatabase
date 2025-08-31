@@ -6,29 +6,53 @@
  * BTree Constructor Implementation
  */
 template <typename KeyType, typename ValueType>
-BTree<KeyType, ValueType>::BTree(int maxKeys) : maxKeysPerNode(maxKeys) {
+BTree<KeyType, ValueType>::BTree(int maxKeys) 
+    : maxKeysPerNode(maxKeys), 
+      page_cache(&content_storage, 50),  // Cache up to 50 pages, can change latr 
+      writer_queue(&content_storage, &page_cache, 2) {  // 2 writer threads
+    
+    writer_queue.start();
     // Initially, the tree is empty, so we create a root node
     // and mark it as a leaf (all data starts at the leaf level in B+ Trees)
     uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
-    root = content_storage.getPage(root_id);
+    root = page_cache.getPage(root_id);  // Get through cache
 }
 
 /*
- * Example Method to Insert Key-Value Pairs (Placeholder)
+ * BTree Destructor Implementation to stop writer q and flush pending writes
+ */
+template <typename KeyType, typename ValueType>
+BTree<KeyType, ValueType>::~BTree() {
+    writer_queue.stop();
+    page_cache.flushAll();
+}
+
+/*
+ * Flush pending writes
+ */
+template <typename KeyType, typename ValueType>
+void BTree<KeyType, ValueType>::flush() {
+    writer_queue.waitForEmpty();
+    page_cache.flushAll();
+}
+
+/*
+ * Placeholder method to insert key value pairs 
  */
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& value) {
     if (!root) { // If tree is empty, create a new root
         uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
-        root = content_storage.getPage(root_id);
+        root = page_cache.getPage(root_id);
     } else if (root->keys.size() == maxKeysPerNode) { // Check if the root is full
         Page<KeyType> new_root_page = createPage<KeyType>(false);
         new_root_page.children.push_back(root->header.page_id); // Page ID of the old root
         splitChild(std::make_shared<Page<KeyType>>(new_root_page), 0, root); // Split child bc of overflow
         
-        // Store the new root in content storage
-        uint16_t new_root_id = content_storage.storePage(new_root_page);
-        root = content_storage.getPage(new_root_id);
+        // Store the new root using cache and writer queue
+        page_cache.putPage(new_root_page.header.page_id, std::make_shared<Page<KeyType>>(new_root_page));
+        writer_queue.enqueueWrite(new_root_page.header.page_id, std::make_shared<Page<KeyType>>(new_root_page));
+        root = page_cache.getPage(new_root_page.header.page_id);
     }
     // Now the root is guaranteed to not be empty
     insertNonFull(root, key, value); // Insert
@@ -54,8 +78,8 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(std::shared_ptr<Page<KeyType>> 
             idx++; // move to child that might have key
         }
         if (idx < node->children.size()) {
-            // Load child page from content storage
-            auto child_page = content_storage.getPage(node->children[idx]);
+            // Load child page from cache
+            auto child_page = page_cache.getPage(node->children[idx]);
             if (child_page) {
                 return findKey(child_page, key);
             } else {
@@ -101,9 +125,10 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
             }
         }
         
-        // Store the modified page in content storage and update the node reference
-        uint16_t new_page_id = content_storage.storePage(modified_node);
-        node = content_storage.getPage(new_page_id);
+        // Store the modified page using cache and writer queue
+        page_cache.putPage(modified_node.header.page_id, std::make_shared<Page<KeyType>>(modified_node));
+        writer_queue.enqueueWrite(modified_node.header.page_id, std::make_shared<Page<KeyType>>(modified_node));
+        node = page_cache.getPage(modified_node.header.page_id);
         
     } else {
         // Find child to descend into
@@ -111,8 +136,8 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
             i--;
         i++;
 
-        // Load child page from content storage
-        auto child_page = content_storage.getPage(node->children[i]);
+        // Load child page from cache
+        auto child_page = page_cache.getPage(node->children[i]);
         if (!child_page) {
             throw std::runtime_error("child page not found");
         }
@@ -150,9 +175,13 @@ void BTree<KeyType, ValueType>::splitChild(std::shared_ptr<Page<KeyType>> parent
         modified_child.children.resize(mid + 1);
     }
 
-    // Store both modified pages in content storage
-    content_storage.storePage(modified_child);
-    uint16_t new_child_id = content_storage.storePage(new_child_page);
+    // Store both modified pages using cache and writer queue
+    page_cache.putPage(modified_child.header.page_id, std::make_shared<Page<KeyType>>(modified_child));
+    writer_queue.enqueueWrite(modified_child.header.page_id, std::make_shared<Page<KeyType>>(modified_child));
+    
+    uint16_t new_child_id = content_storage.storePage(new_child_page);  // New page needs ID first
+    page_cache.putPage(new_child_id, std::make_shared<Page<KeyType>>(new_child_page));
+    writer_queue.enqueueWrite(new_child_id, std::make_shared<Page<KeyType>>(new_child_page));
     
     // Update parent
     parent->children.insert(parent->children.begin() + index + 1, new_child_id); // Insert new child page ID
@@ -167,12 +196,12 @@ void BTree<KeyType, ValueType>::deleteKey(const KeyType& key) {
 
     // If root is now empty and has a child, make child the new root
     if (!root->is_leaf && root->keys.empty()) {
-        auto child_page = content_storage.getPage(root->children[0]);
+        auto child_page = page_cache.getPage(root->children[0]);
         if (child_page) {
             root = child_page;
         } else {
             uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
-            root = content_storage.getPage(root_id);
+            root = page_cache.getPage(root_id);
         }
     }
 }
@@ -198,9 +227,10 @@ void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> no
             size_t start_offset = idx * value_size;
             modified_node.data.erase(modified_node.data.begin() + start_offset, modified_node.data.begin() + start_offset + value_size);
             
-            // Store the modified page in content storage and update the node reference
-            uint16_t new_page_id = content_storage.storePage(modified_node);
-            node = content_storage.getPage(new_page_id);
+            // Store the modified page using cache and writer queue
+            page_cache.putPage(modified_node.header.page_id, std::make_shared<Page<KeyType>>(modified_node));
+            writer_queue.enqueueWrite(modified_node.header.page_id, std::make_shared<Page<KeyType>>(modified_node));
+            node = page_cache.getPage(modified_node.header.page_id);
         } else {
             // Key not found
             return;
@@ -210,8 +240,8 @@ void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> no
             idx++; // move to child that might have key
         }
 
-        // Load child page from content storage
-        auto child_page = content_storage.getPage(node->children[idx]);
+        // Load child page from cache
+        auto child_page = page_cache.getPage(node->children[idx]);
         if (!child_page) {
             throw std::runtime_error("child page not found");
         }
@@ -229,8 +259,8 @@ void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> no
 
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> parent, int index) {
-    auto child_page = content_storage.getPage(parent->children[index]);
-    auto sibling_page = content_storage.getPage(parent->children[index - 1]);
+    auto child_page = page_cache.getPage(parent->children[index]);
+    auto sibling_page = page_cache.getPage(parent->children[index - 1]);
     
     if (!child_page || !sibling_page) {
         throw std::runtime_error("child or sibling page not found");
@@ -254,9 +284,11 @@ void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> pa
         modified_sibling.data.resize(modified_sibling.data.size() - value_size); // Remove the last value from sibling
         parent->keys[index - 1] = modified_child.keys[0]; // Update the parent key
         
-        // Store modified pages in content storage
-        content_storage.storePage(modified_child);
-        content_storage.storePage(modified_sibling);
+        // Store modified pages using cache and writer queue
+        page_cache.putPage(modified_child.header.page_id, std::make_shared<Page<KeyType>>(modified_child));
+        writer_queue.enqueueWrite(modified_child.header.page_id, std::make_shared<Page<KeyType>>(modified_child));
+        page_cache.putPage(modified_sibling.header.page_id, std::make_shared<Page<KeyType>>(modified_sibling));
+        writer_queue.enqueueWrite(modified_sibling.header.page_id, std::make_shared<Page<KeyType>>(modified_sibling));
     } else { // If not leaf, borrow the last key and child pointer
         modified_child.keys.insert(modified_child.keys.begin(), parent->keys[index - 1]);
         parent->keys[index - 1] = modified_sibling.keys.back(); // Update the parent key
