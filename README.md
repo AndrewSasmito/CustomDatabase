@@ -1,4 +1,4 @@
-# Custom Database Engine with Content-Addressable Storage
+# Custom Database Engine by Fiona V. and Andrew S.
 
 A custom database engine with page oriented content addressable storage, deduplication, and B-Tree indexing, getting rid of redundant full page writes.
 
