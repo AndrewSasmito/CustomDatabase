@@ -1,12 +1,12 @@
 # Custom Database Engine with Content-Addressable Storage
 
-A custom database engine with page-oriented, content-addressable storage and B-Tree indexing, eliminating redundant full-page writes and cutting disk amplification by ~70%.
+A custom database engine with page oriented content addressable storage, deduplication, and B-Tree indexing, getting rid of redundant full page writes.
 
 Currently in progress.
 
 Note that git commit history is not representative of the work distribution, as the majority of the work is done in VSCode Live Share sessions of both of us working on it simultaneously.
 
-A simple command-line interface to test the B-tree database implementation with content-addressable storage.
+A simple command line interface is used to test the B-tree database implementation with content addressable storage.
 
 ## Building
 
@@ -30,11 +30,6 @@ make
 ### Content Addressable Demo
 ```bash
 ./content_addressable_demo
-```
-
-### Deduplication Demo
-```bash
-./deduplication_demo
 ```
 
 ### Run All Tests
@@ -93,7 +88,7 @@ Goodbye!
 - **Basic Operations**: Insert, delete, and search operations
 - **Error Handling**: Graceful handling of missing keys and invalid operations
 - **Content-Addressable Storage**: Pages are identified by content hash for deduplication
-- **Storage Statistics**: Monitor deduplication effectiveness and storage usage
+- **Block Level Cache**: B+ tree operations go through the cache first
 
 ## Technical Details
 
@@ -103,60 +98,24 @@ Goodbye!
 - The implementation uses templates to support different key and value types
 - Content hashes are automatically computed and updated when pages change
 - Identical pages share the same content hash, enabling deduplication
+- There is an LRU cache as part of the block level cache to optimize content-addressable storage (more on that later)
 
 ## Content-Addressable Storage
 
-The database implements content-addressable storage where each page is identified by a unique hash based on its content. This enables:
+The database implements content-addressable storage where each page is identified by a unique hash based on its content rather than a fixed physical location. This approach enables automatic deduplication since identical pages produce the same hash and are stored only once, reducing storage requirements by eliminating duplicates. The system maintains a mapping from content hashes to actual page data through the `ContentStorage` class, which checks for existing content before writing new pages.
 
-- **Deduplication**: Identical pages are stored only once
-- **Storage Efficiency**: Reduces storage requirements by eliminating duplicates
-- **Cache Optimization**: Content-based caching improves performance
-- **Data Integrity**: Content hashes provide integrity verification
+This design provides significant storage efficiency improvements, particularly during B+ Tree operations like splits and merges where similar page structures are common. Content-based addressing also enables more intelligent caching strategies since pages can be cached by their content hash, improving cache hit rates when the same content is requested under different logical page IDs. Additionally, content hashes provide built in data integrity verification, so any corruption or modification to page content results in a different hash, making tampering immediately detectable without additional overhead.
 
-### Content Hash Demo Output
+## Block-Level Cache
 
-```
-=== Content-Addressable Storage Demo ===
-Inserting data...
+We used an LRU cache and a special write policy for a block level cache. What this does is it sits between our B+ Tree operations and the content addressable storage so that you can cache frequently accessed pages in memory instead of writing every page modification immediately. 
+So, it looks something like `B-Tree operations -> Block-Level Cache (LRU) -> Content-Addressable Storage -> Persistent Storage`
 
-Content Hash Demo:
-1. Same content should have same hash
-2. Different content should have different hashes
+We chose this design because it means that frequently accessed pages stay in memory, multiple modifications to the same page can be batched, and so that there are fewer calls to our content storage. Our multi threaded writer queue also avoids bottlenecks that could happen if our B-Tree splits or merges. 
 
-Hash of data1: 8996017160742164057
-Hash of data2: 8996017160742164057
-Hash of data3: 17809577952414782487
+The block level cache and multi threaded writer queue use the `PageCache` class and the `WriterQueue` class. The `PageCache` class is used for LRU based caching, dirty page tracing, eviction when the cache is full, and operations with mutex protection. The WriterQueue class is used for multi threaded background write processing, queue based batching, and async write processing.
 
-Data1 == Data2: Yes
-Data1 == Data3: No
-
-Content-addressable storage benefits:
-✓ Eliminates duplicate pages
-✓ Enables data deduplication
-✓ Reduces storage requirements
-✓ Improves cache efficiency
-```
-
-### Deduplication Demo Output
-
-```
-=== Content-Addressable Storage Deduplication Demo ===
-
-1. Inserting initial data...
-Stored new content with hash 11160318154034397263 as page ID 1
-Stored new content with hash 4099098765366762126 as page ID 2
-
-2. Inserting duplicate data...
-Deduplication: Found existing content with hash 11160318154034397263, reusing page ID 1
-Deduplication: Found existing content with hash 4099098765366762126, reusing page ID 2
-
-=== Content Storage Statistics ===
-Total unique content blocks: 2
-Total page IDs assigned: 4
-Next available page ID: 5
-===================================
-```
-
+All B+ Tree operations first go through the cache, modified pages are queued for background writing, and there is proper cleanup and flushing and destruction.
 ## Testing
 
 The project includes comprehensive demo programs that serve as tests:
@@ -164,6 +123,7 @@ The project includes comprehensive demo programs that serve as tests:
 - **Content Hash Demo**: Verifies content hashing works correctly
 - **Content Addressable Demo**: Shows content-addressable storage benefits
 - **Deduplication Demo**: Demonstrates automatic deduplication in action
+- **Block-Level Cache Demo**
 - **Interactive Interface**: Manual testing of B-tree operations
 
 Run all tests with:
