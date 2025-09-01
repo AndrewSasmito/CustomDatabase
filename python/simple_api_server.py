@@ -7,7 +7,9 @@ import logging
 from typing import Optional, Dict, Any
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +18,13 @@ logger = logging.getLogger(__name__)
 # Simple in-memory storage for demonstration
 memory_store = {}
 transaction_counter = 1
+
+# Prometheus metrics
+db_operations_total = Counter('db_operations_total', 'Total database operations', ['operation', 'status'])
+db_operation_duration = Histogram('db_operation_duration_seconds', 'Database operation duration', ['operation'])
+db_health_status = Gauge('db_health_status', 'Database health status (1=healthy, 0=unhealthy)')
+db_total_keys = Gauge('db_total_keys', 'Total number of keys in database')
+db_memory_usage = Gauge('db_memory_usage_bytes', 'Memory usage in bytes')
 
 # FastAPI app
 app = FastAPI(
@@ -61,40 +70,54 @@ async def root():
 @app.post("/insert", response_model=dict)
 async def insert_key_value(request: InsertRequest):
     """Insert a key-value pair into the database"""
-    try:
-        memory_store[request.key] = request.value
-        logger.info(f"Inserted: {request.key} -> {request.value}")
-        return {"success": True, "key": request.key}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Insert failed: {str(e)}")
+    with db_operation_duration.labels(operation='insert').time():
+        try:
+            memory_store[request.key] = request.value
+            db_operations_total.labels(operation='insert', status='success').inc()
+            db_total_keys.set(len(memory_store))
+            db_memory_usage.set(sum(len(str(k)) + len(str(v)) for k, v in memory_store.items()))
+            logger.info(f"Inserted: {request.key} -> {request.value}")
+            return {"success": True, "key": request.key}
+        except Exception as e:
+            db_operations_total.labels(operation='insert', status='error').inc()
+            raise HTTPException(status_code=500, detail=f"Insert failed: {str(e)}")
 
 @app.get("/search/{key}", response_model=SearchResponse)
 async def search_key(key: str):
     """Search for a key in the database"""
-    try:
-        value = memory_store.get(key)
-        found = value is not None
-        logger.info(f"Search: {key} -> {'found' if found else 'not found'}")
-        return SearchResponse(
-            key=key,
-            value=value if found else None,
-            found=found
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+    with db_operation_duration.labels(operation='search').time():
+        try:
+            value = memory_store.get(key)
+            found = value is not None
+            db_operations_total.labels(operation='search', status='success').inc()
+            logger.info(f"Search: {key} -> {'found' if found else 'not found'}")
+            return SearchResponse(
+                key=key,
+                value=value if found else None,
+                found=found
+            )
+        except Exception as e:
+            db_operations_total.labels(operation='search', status='error').inc()
+            raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.delete("/remove/{key}")
 async def remove_key(key: str):
     """Remove a key from the database"""
-    try:
-        if key in memory_store:
-            del memory_store[key]
-            logger.info(f"Removed: {key}")
-            return {"success": True, "key": key}
-        else:
-            return {"success": False, "key": key, "message": "Key not found"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Remove failed: {str(e)}")
+    with db_operation_duration.labels(operation='remove').time():
+        try:
+            if key in memory_store:
+                del memory_store[key]
+                db_operations_total.labels(operation='remove', status='success').inc()
+                db_total_keys.set(len(memory_store))
+                db_memory_usage.set(sum(len(str(k)) + len(str(v)) for k, v in memory_store.items()))
+                logger.info(f"Removed: {key}")
+                return {"success": True, "key": key}
+            else:
+                db_operations_total.labels(operation='remove', status='not_found').inc()
+                return {"success": False, "key": key, "message": "Key not found"}
+        except Exception as e:
+            db_operations_total.labels(operation='remove', status='error').inc()
+            raise HTTPException(status_code=500, detail=f"Remove failed: {str(e)}")
 
 @app.get("/stats", response_model=StatsResponse)
 async def get_stats():
@@ -112,6 +135,11 @@ async def get_stats():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    # Update health metrics
+    db_health_status.set(1)  # 1 = healthy
+    db_total_keys.set(len(memory_store))
+    db_memory_usage.set(sum(len(str(k)) + len(str(v)) for k, v in memory_store.items()))
+    
     return {
         "status": "healthy",
         "database": "demo_mode",
@@ -172,6 +200,8 @@ async def clear_demo_data():
     """Clear all demo data"""
     count = len(memory_store)
     memory_store.clear()
+    db_total_keys.set(0)
+    db_memory_usage.set(0)
     logger.info(f"Cleared {count} records")
     
     return {
@@ -179,10 +209,16 @@ async def clear_demo_data():
         "total_keys": len(memory_store)
     }
 
+@app.get("/metrics")
+async def get_metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 if __name__ == "__main__":
     print("Starting FastAPI Database Server (Demo Mode)")
     print("API Documentation: http://localhost:8000/docs")
     print("Health Check: http://localhost:8000/health")
+    print("Prometheus Metrics: http://localhost:8000/metrics")
     print("Populate Demo Data: http://localhost:8000/demo/populate")
     print("=" * 60)
     
