@@ -10,6 +10,7 @@
 #include "content_storage.h"
 #include "page_cache.h"
 #include "writer_queue.h"
+#include "wal.h"
 
 /*
 *   BTree that stores the BTreeNodes, ensures it is balanced
@@ -23,6 +24,8 @@ class BTree {
         ContentStorage<KeyType> content_storage;
         PageCache<KeyType> page_cache;
         WriterQueue<KeyType> writer_queue;
+        WALManager<KeyType> wal_manager;
+        uint64_t current_transaction;
         
         void insertNonFull(std::shared_ptr<Page<KeyType>> root, const KeyType& key, const ValueType& value);
         void splitChild(std::shared_ptr<Page<KeyType>> parent, int index, std::shared_ptr<Page<KeyType>> child);
@@ -40,6 +43,10 @@ class BTree {
         ValueType* search(const KeyType& key); // Public search method
         void printStorageStats() const;
         void flush(); // To flush all pending writes
+        
+        void beginTransaction();
+        void commitTransaction();
+        void abortTransaction();
 
         Page<KeyType> findKey(std::shared_ptr<Page<KeyType>> node, const KeyType& key);
 
