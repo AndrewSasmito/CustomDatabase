@@ -47,6 +47,10 @@ class BTree {
         void beginTransaction();
         void commitTransaction();
         void abortTransaction();
+        
+        // Accessors for job scheduler integration
+        WALManager<KeyType>& getWALManager() { return wal_manager; }
+        PageCache<KeyType>& getPageCache() { return page_cache; }
 
         Page<KeyType> findKey(std::shared_ptr<Page<KeyType>> node, const KeyType& key);
 
