@@ -9,9 +9,15 @@ template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::BTree(int maxKeys) 
     : maxKeysPerNode(maxKeys), 
       page_cache(&content_storage, 50),  // Cache up to 50 pages, can change latr 
-      writer_queue(&content_storage, &page_cache, 2) {  // 2 writer threads
+      writer_queue(&content_storage, &page_cache, 2),  // 2 writer threads
+      wal_manager("btree.wal", 8192), // 8KB WAL buffer
+      current_transaction(0) {
     
     writer_queue.start();
+    
+    // Start first transaction
+    current_transaction = wal_manager.beginTransaction();
+    
     // Initially, the tree is empty, so we create a root node
     // and mark it as a leaf (all data starts at the leaf level in B+ Trees)
     uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
@@ -23,8 +29,13 @@ BTree<KeyType, ValueType>::BTree(int maxKeys)
  */
 template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::~BTree() {
+    if (current_transaction != 0) {
+        wal_manager.commitTransaction(current_transaction);
+    }
+    
     writer_queue.stop();
     page_cache.flushAll();
+    wal_manager.sync();
 }
 
 /*
@@ -37,13 +48,53 @@ void BTree<KeyType, ValueType>::flush() {
 }
 
 /*
+ * Transaction Management Methods
+ */
+template <typename KeyType, typename ValueType>
+void BTree<KeyType, ValueType>::beginTransaction() {
+    if (current_transaction != 0) {
+        wal_manager.commitTransaction(current_transaction);
+    }
+    current_transaction = wal_manager.beginTransaction();
+}
+
+template <typename KeyType, typename ValueType>
+void BTree<KeyType, ValueType>::commitTransaction() {
+    if (current_transaction != 0) {
+        wal_manager.commitTransaction(current_transaction);
+        current_transaction = 0;
+    }
+}
+
+template <typename KeyType, typename ValueType>
+void BTree<KeyType, ValueType>::abortTransaction() {
+    if (current_transaction != 0) {
+        wal_manager.abortTransaction(current_transaction);
+        current_transaction = 0;
+    }
+}
+
+/*
  * Placeholder method to insert key value pairs 
  */
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& value) {
+    // Ensure we have an active transaction
+    if (current_transaction == 0) {
+        current_transaction = wal_manager.beginTransaction();
+    }
+    
+    // Serialize the value for WAL logging
+    std::vector<uint8_t> serialized_value;
+    const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
+    serialized_value.assign(value_bytes, value_bytes + sizeof(ValueType));
+    
     if (!root) { // If tree is empty, create a new root
         uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
         root = page_cache.getPage(root_id);
+        
+        // Log the insert operation
+        wal_manager.logInsert(current_transaction, root_id, key, serialized_value);
     } else if (root->keys.size() == maxKeysPerNode) { // Check if the root is full
         Page<KeyType> new_root_page = createPage<KeyType>(false);
         new_root_page.children.push_back(root->header.page_id); // Page ID of the old root
@@ -54,6 +105,10 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& valu
         writer_queue.enqueueWrite(new_root_page.header.page_id, std::make_shared<Page<KeyType>>(new_root_page));
         root = page_cache.getPage(new_root_page.header.page_id);
     }
+    
+    // Log the insert operation for all cases so that we can rollback if needed
+    wal_manager.logInsert(current_transaction, root->header.page_id, key, serialized_value);
+    
     // Now the root is guaranteed to not be empty
     insertNonFull(root, key, value); // Insert
    
