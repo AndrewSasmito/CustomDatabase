@@ -4,7 +4,7 @@ A custom database engine with page oriented content addressable storage, dedupli
 
 Note that git commit history is not representative of the work distribution, as the majority of the work is done in VSCode Live Share sessions of both of us working on it simultaneously.
 
-A simple command line interface is used to test the B+ Tree database implementation with content addressable storage.
+A simple command-line interface to test the B+Tree database implementation with content-addressable storage, plus a FastAPI web server for REST API access.
 
 ## Building
 
@@ -52,7 +52,6 @@ The FastAPI server provides:
 - **Interactive Docs**: Automatic API documentation at http://localhost:8000/docs **ONCE YOUR SERVER IS RUNNING.**
 - **Prometheus Metrics**: Monitoring endpoint at http://localhost:8000/metrics
 - **Health Check**: System status at http://localhost:8000/health
-
 ## Available Commands (Interactive Interface)
 
 - `insert <key> <value>` - Insert a key-value pair into the database
@@ -199,3 +198,4 @@ Run all tests with:
 ```bash
 make tests
 ```
+
