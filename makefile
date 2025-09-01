@@ -4,24 +4,28 @@ SRCDIR = src
 OBJDIR = obj
 
 # Source files (only B-tree related files)
-SOURCES = src/Btree.cpp src/main.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp
+SOURCES = src/Btree.cpp src/main.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
 OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Demo source files
-DEMO_SOURCES = src/Btree.cpp src/content_hash_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp
+DEMO_SOURCES = src/Btree.cpp src/content_hash_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
 DEMO_OBJECTS = $(DEMO_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Content addressable demo
-ADDRESSABLE_SOURCES = src/Btree.cpp src/content_addressable_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp
+ADDRESSABLE_SOURCES = src/Btree.cpp src/content_addressable_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
 ADDRESSABLE_OBJECTS = $(ADDRESSABLE_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Deduplication demo
-DEDUP_SOURCES = src/Btree.cpp src/deduplication_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp
+DEDUP_SOURCES = src/Btree.cpp src/deduplication_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
 DEDUP_OBJECTS = $(DEDUP_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Cache performance demo
-CACHE_PERF_SOURCES = src/Btree.cpp src/cache_performance_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp
+CACHE_PERF_SOURCES = src/Btree.cpp src/cache_performance_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
 CACHE_PERF_OBJECTS = $(CACHE_PERF_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+
+# Job scheduler demo
+JOB_SCHED_SOURCES = src/Btree.cpp src/job_scheduler_demo.cpp src/page_manager.cpp src/page_cache.cpp src/writer_queue.cpp src/wal.cpp src/job_scheduler.cpp src/checkpoint_manager.cpp
+JOB_SCHED_OBJECTS = $(JOB_SCHED_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Target executables
 TARGET = btree_test
@@ -29,9 +33,10 @@ DEMO_TARGET = content_hash_demo
 ADDRESSABLE_TARGET = content_addressable_demo
 DEDUP_TARGET = deduplication_demo
 CACHE_PERF_TARGET = cache_performance_demo
+JOB_SCHED_TARGET = job_scheduler_demo
 
 # Default target
-all: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET) $(CACHE_PERF_TARGET)
+all: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET) $(CACHE_PERF_TARGET) $(JOB_SCHED_TARGET)
 
 # Create object directory if it doesn't exist
 $(OBJDIR):
@@ -61,9 +66,13 @@ $(DEDUP_TARGET): $(DEDUP_OBJECTS)
 $(CACHE_PERF_TARGET): $(CACHE_PERF_OBJECTS)
 	$(CXX) $(CACHE_PERF_OBJECTS) -o $(CACHE_PERF_TARGET)
 
+# Link job scheduler demo executable
+$(JOB_SCHED_TARGET): $(JOB_SCHED_OBJECTS)
+	$(CXX) $(JOB_SCHED_OBJECTS) -o $(JOB_SCHED_TARGET)
+
 # Clean build files
 clean:
-	rm -rf $(OBJDIR) $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET) $(CACHE_PERF_TARGET)
+	rm -rf $(OBJDIR) $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET) $(CACHE_PERF_TARGET) $(JOB_SCHED_TARGET)
 
 # Run the test
 run: $(TARGET)
@@ -85,6 +94,10 @@ dedup: $(DEDUP_TARGET)
 cache_perf: $(CACHE_PERF_TARGET)
 	./$(CACHE_PERF_TARGET)
 
+# Run the job scheduler demo
+job_sched: $(JOB_SCHED_TARGET)
+	./$(JOB_SCHED_TARGET)
+
 # Run all tests (for CI/CD compatibility)
 tests: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET)
 	@echo "=== Running Content Hash Demo ==="
@@ -100,4 +113,4 @@ tests: $(TARGET) $(DEMO_TARGET) $(ADDRESSABLE_TARGET) $(DEDUP_TARGET)
 	@echo -e "insert 1 apple\ninsert 2 banana\nsearch 1\nsearch 2\nquit" | ./$(TARGET) > /dev/null
 	@echo "All tests passed!"
 
-.PHONY: all clean run demo addressable dedup cache_perf tests
+.PHONY: all clean run demo addressable dedup cache_perf job_sched tests
