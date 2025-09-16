@@ -109,6 +109,9 @@ Goodbye!
 
 ## How does a B+ Tree work?
 
+<img width="701" height="231" alt="image" src="https://github.com/user-attachments/assets/bf3ab7cb-3dd9-4680-8c2a-facec1e4bdc9" />
+
+
 A B+ Tree is a self-balancing tree data structure optimized for disk storage and database systems. Unlike regular B-Trees, B+ Trees have a key difference: **all data is stored only in the leaf nodes**, while internal nodes contain only keys for navigation.
 
 ### Structure:
@@ -153,6 +156,10 @@ We chose this design because it means that frequently accessed pages stay in mem
 The block level cache and multi threaded writer queue use the `PageCache` class and the `WriterQueue` class. The `PageCache` class is used for LRU based caching, dirty page tracing, eviction when the cache is full, and operations with mutex protection. The WriterQueue class is used for multi threaded background write processing, queue based batching, and async write processing.
 
 All B+ Tree operations first go through the cache, modified pages are queued for background writing, and there is proper cleanup and flushing and destruction.
+
+<img width="650" height="538" alt="image" src="https://github.com/user-attachments/assets/f3bc8d47-58e3-4e9e-ae7b-839848800d8b" />
+<img width="650" height="447" alt="image" src="https://github.com/user-attachments/assets/c8bfef66-f3e9-445e-acad-46507709a63e" />
+<img width="650" height="556" alt="image" src="https://github.com/user-attachments/assets/2f190399-d968-46e0-9d66-55b75ae8dfc5" />
 
 ## API Endpoints
 
