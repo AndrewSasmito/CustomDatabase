@@ -3,14 +3,17 @@
 #include <cstring>
 
 /*
- * BTree Constructor Implementation
+ BTree Constructor Implementation, that initializes storage,
+ cache, writer queue, and WAL manager.
  */
 template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::BTree(int maxKeys) 
     : maxKeysPerNode(maxKeys), 
-      page_cache(&content_storage, 50),  // Cache up to 50 pages, can change latr 
-      writer_queue(&content_storage, &page_cache, 2),  // 2 writer threads
-      wal_manager("btree.wal", 8192), // 8KB WAL buffer
+      page_cache(&content_storage, 50),
+      // Use 2 threads for writer queue for better throughput
+      writer_queue(&content_storage, &page_cache, 2),
+      // Just make the WAL file "btree.wal" with 8KB pages, can change
+      wal_manager("btree.wal", 8192),
       current_transaction(0) {
     
     writer_queue.start();
@@ -21,12 +24,12 @@ BTree<KeyType, ValueType>::BTree(int maxKeys)
     // Initially, the tree is empty, so we create a root node
     // and mark it as a leaf (all data starts at the leaf level in B+ Trees)
     uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
-    root = page_cache.getPage(root_id);  // Get through cache
+    root = page_cache.getPage(root_id);
 }
 
 /*
- * BTree Destructor Implementation to stop writer q and flush pending writes
- */
+ BTree destructor to stop writer queue, sync WAL file and flush pending writes.
+*/
 template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::~BTree() {
     if (current_transaction != 0) {
@@ -39,8 +42,8 @@ BTree<KeyType, ValueType>::~BTree() {
 }
 
 /*
- * Flush pending writes
- */
+ Flush pending writes if needed.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::flush() {
     writer_queue.waitForEmpty();
@@ -48,8 +51,8 @@ void BTree<KeyType, ValueType>::flush() {
 }
 
 /*
- * Transaction Management Methods
- */
+ Transaction management methods.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::beginTransaction() {
     if (current_transaction != 0) {
@@ -58,14 +61,21 @@ void BTree<KeyType, ValueType>::beginTransaction() {
     current_transaction = wal_manager.beginTransaction();
 }
 
+/*
+ Commit the current transaction using our WAL manager.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::commitTransaction() {
+    // First make sure there is an actual active transaction
     if (current_transaction != 0) {
         wal_manager.commitTransaction(current_transaction);
         current_transaction = 0;
     }
 }
 
+/*
+ Use the WAL manager to abort a transaction in case of errors.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::abortTransaction() {
     if (current_transaction != 0) {
@@ -75,30 +85,36 @@ void BTree<KeyType, ValueType>::abortTransaction() {
 }
 
 /*
- * Placeholder method to insert key value pairs 
- */
+ Placeholder method to insert key value pairs, using B+Tree
+ insertion logic. This means:
+    - If root is full, split it and create a new root
+    - Otherwise, insert into the appropriate non-full node
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& value) {
-    // Ensure we have an active transaction
+    // Ensure we have an active transaction, otherwise make one
     if (current_transaction == 0) {
         current_transaction = wal_manager.beginTransaction();
     }
     
-    // Serialize the value for WAL logging
+    // Serialize the value for WAL logging because we need to store it
     std::vector<uint8_t> serialized_value;
+    // Serialize the value to binary data
     const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
     serialized_value.assign(value_bytes, value_bytes + sizeof(ValueType));
     
-    if (!root) { // If tree is empty, create a new root
+    if (!root) {
+        // Create new root if the tree is empty using content storage
         uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
+        // Then assign the root from the page cache
         root = page_cache.getPage(root_id);
-        
-        // Log the insert operation
         wal_manager.logInsert(current_transaction, root_id, key, serialized_value);
-    } else if (root->keys.size() == maxKeysPerNode) { // Check if the root is full
+        
+    } else if (root->keys.size() == maxKeysPerNode) { // If root is full, need to split
         Page<KeyType> new_root_page = createPage<KeyType>(false);
         new_root_page.children.push_back(root->header.page_id); // Page ID of the old root
-        splitChild(std::make_shared<Page<KeyType>>(new_root_page), 0, root); // Split child bc of overflow
+        // Split the old root and move a key up to the new root, use shared_ptr because of cache
+        splitChild(std::make_shared<Page<KeyType>>(new_root_page), 0, root);
         
         // Store the new root using cache and writer queue
         page_cache.putPage(new_root_page.header.page_id, std::make_shared<Page<KeyType>>(new_root_page));
@@ -106,18 +122,20 @@ void BTree<KeyType, ValueType>::insert(const KeyType& key, const ValueType& valu
         root = page_cache.getPage(new_root_page.header.page_id);
     }
     
-    // Log the insert operation for all cases so that we can rollback if needed
+    // Log the insert operation for all cases so that we can rollback if needed (WAL)
     wal_manager.logInsert(current_transaction, root->header.page_id, key, serialized_value);
-    
-    // Now the root is guaranteed to not be empty
-    insertNonFull(root, key, value); // Insert
-   
+
+    insertNonFull(root, key, value);   
 }
 
-// Find the node that has a key
+/*
+ Find a specific node in our B+Tree given a key, using
+ B+Tree traversal rules.
+*/
 template <typename KeyType, typename ValueType>
 Page<KeyType> BTree<KeyType, ValueType>::findKey(std::shared_ptr<Page<KeyType>> node, const KeyType& key){
-    size_t idx = 0; // Index to find the key
+    size_t idx = 0;
+    // Find the first key greater than or equal to key
     while (idx < node->keys.size() && key > node->keys[idx]) {
         idx++;
     }
@@ -125,12 +143,12 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(std::shared_ptr<Page<KeyType>> 
         if (idx < node->keys.size() && node->keys[idx] == key) {
             return *node;
         } else {
-            // Key not found
+            // Make sure the key actually exists
             throw std::runtime_error("key not found");
         }
     } else { // If not leaf, need to find the child
         if (idx < node->keys.size() && node->keys[idx] == key) {
-            idx++; // move to child that might have key
+            idx++;
         }
         if (idx < node->children.size()) {
             // Load child page from cache
@@ -146,19 +164,22 @@ Page<KeyType> BTree<KeyType, ValueType>::findKey(std::shared_ptr<Page<KeyType>> 
     }
 }
 
-// Function that traverses tree and inserts into a node that isnt full. helper for insert
+/*
+ Function that traverses tree and inserts into a node that isn't full.
+ Helper for the insert method.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> node, const KeyType& key, const ValueType& value) {
-    int i = node->keys.size() - 1; // Start from the last key
+    // Start from the last key and find the location to insert
+    int i = node->keys.size() - 1;
 
     if (node->is_leaf) { // If its a leaf node, insert the key and value
         // Create a copy of the node to modify
         Page<KeyType> modified_node = *node;
         
-        // Insert in sorted order
         modified_node.keys.push_back(key);
         
-        // Serialize the value to binary data
+        // Serialize the value to binary data for storage
         std::vector<uint8_t> serialized_value;
         const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
         serialized_value.assign(value_bytes, value_bytes + sizeof(ValueType));
@@ -166,15 +187,16 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
         // Insert the serialized value into the data vector
         modified_node.data.insert(modified_node.data.end(), serialized_value.begin(), serialized_value.end());
         
-        // Sort both keys and data together
+        // Sort both keys and data together, simple insertion sort for small number of keys
         for (int j = modified_node.keys.size() - 1; j > 0 && modified_node.keys[j] < modified_node.keys[j - 1]; --j) {
             std::swap(modified_node.keys[j], modified_node.keys[j - 1]); // Swap keys
             
-            // Swap the corresponding data blocks
+            // Swap the corresponding data blocks, each value is sizeof(ValueType)
             size_t value_size = sizeof(ValueType);
             size_t offset1 = j * value_size;
             size_t offset2 = (j - 1) * value_size;
             
+            // Swap the data bytes
             for (size_t k = 0; k < value_size; ++k) {
                 std::swap(modified_node.data[offset1 + k], modified_node.data[offset2 + k]);
             }
@@ -186,7 +208,7 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
         node = page_cache.getPage(modified_node.header.page_id);
         
     } else {
-        // Find child to descend into
+        // Find child to descend into using key comparison
         while (i >= 0 && key < node->keys[i])
             i--;
         i++;
@@ -197,9 +219,11 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
             throw std::runtime_error("child page not found");
         }
         
-        if (child_page->keys.size() == maxKeysPerNode) { // If the child is full, split it
+        // If the child is full, you need to split it
+        if (child_page->keys.size() == maxKeysPerNode) {
             splitChild(node, i, child_page);
-            if (key > node->keys[i]) i++; // Check which child to go to after split
+            // Check which child to go to after split
+            if (key > node->keys[i]) i++;
         }
 
         // Recursively insert into child
@@ -207,24 +231,30 @@ void BTree<KeyType, ValueType>::insertNonFull(std::shared_ptr<Page<KeyType>> nod
     }
 }
 
-// Function to split a child node in case its full. helper for insert
+/*
+ Function to split a child node in case it's full.
+ Helper function for insert.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::splitChild(std::shared_ptr<Page<KeyType>> parent, int index, std::shared_ptr<Page<KeyType>> child) {
-    int mid = maxKeysPerNode / 2; // Remember b+tree property
+    // In a B+Tree, the middle key moves up to the parent
+    int mid = maxKeysPerNode / 2;
 
     // Create copies to modify
     Page<KeyType> modified_child = *child;
+    // Use the leaf status of the original child
     Page<KeyType> new_child_page = createPage<KeyType>(child->is_leaf);
 
     // Copy second half of keys/values to the new node
     new_child_page.keys.assign(modified_child.keys.begin() + mid + 1, modified_child.keys.end()); // Copy keys
     modified_child.keys.resize(mid); // Keep the mid key in left for b+ tree
 
-    if (modified_child.is_leaf) { // If its a leaf, assign values
+    if (modified_child.is_leaf) { // If it's a leaf, assign values
         size_t value_size = sizeof(ValueType);
         size_t start_offset = (mid + 1) * value_size;
         new_child_page.data.assign(modified_child.data.begin() + start_offset, modified_child.data.end());
         modified_child.data.resize((mid + 1) * value_size);  // Keep the mid key in left for b+ tree
+
     } else { // If not leaf, copy children
         new_child_page.children.assign(modified_child.children.begin() + mid + 1, modified_child.children.end());
         modified_child.children.resize(mid + 1);
@@ -243,39 +273,44 @@ void BTree<KeyType, ValueType>::splitChild(std::shared_ptr<Page<KeyType>> parent
     parent->keys.insert(parent->keys.begin() + index, modified_child.keys[mid]); // Insert the mid key into parent
 }
 
-// Helper function to delete a key
+/*
+ Helper function to delete a key from the B+Tree.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::deleteKey(const KeyType& key) {
     if (!root) return; // If tree is empty, nothing to delete
-    deleteFromNode(root, key); // Delete fromthe node
+    deleteFromNode(root, key);
 
     // If root is now empty and has a child, make child the new root
     if (!root->is_leaf && root->keys.empty()) {
         auto child_page = page_cache.getPage(root->children[0]);
         if (child_page) {
             root = child_page;
-        } else {
+        } else { // If child not found, create a new root
             uint16_t root_id = content_storage.storePage(createPage<KeyType>(true));
             root = page_cache.getPage(root_id);
         }
     }
 }
 
-// Helper function to delete key from node
-// Pretty complex, but it handles the case of underflow and merging nodes. Search, delete
+/*
+ Helper function to delete a key from a specific node.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> node, const KeyType& key) {
-    size_t idx = 0; // Index to find the key
-    while (idx < node->keys.size() && key > node->keys[idx]) { // Traverse to find key
+    size_t idx = 0;
+    // Traverse to find the first key greater than or equal to key
+    while (idx < node->keys.size() && key > node->keys[idx]) {
         idx++;
     }
 
     if (node->is_leaf) { // If leaf node, just delete the key
         if (idx < node->keys.size() && node->keys[idx] == key) {
-            // Create a copy to modify
+            // Create a copy to modify because of cache
             Page<KeyType> modified_node = *node;
             
-            modified_node.keys.erase(modified_node.keys.begin() + idx); // Remove the key
+            // Remove the key
+            modified_node.keys.erase(modified_node.keys.begin() + idx);
             
             // Remove the corresponding data block
             size_t value_size = sizeof(ValueType);
@@ -292,7 +327,7 @@ void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> no
         }
     } else { // If not leaf, need to find the child to delete from
         if (idx < node->keys.size() && node->keys[idx] == key) {
-            idx++; // move to child that might have key
+            idx++;
         }
 
         // Load child page from cache
@@ -305,13 +340,17 @@ void BTree<KeyType, ValueType>::deleteFromNode(std::shared_ptr<Page<KeyType>> no
 
         // Fix underflow (not enough keys in child)
         if (child_page->keys.size() < (maxKeysPerNode + 1) / 2) {
+            // TODO: Handle underflow by borrowing from siblings or merging
             // For now, just leave as is since we don't have proper sibling handling
         }
     }
 }
 
-// Borrow from left and right siblings
 
+/*
+ Attempt to borrow a key from the left sibling which happens 
+ when there is an underflow in the child node, because of B+Tree properties.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> parent, int index) {
     auto child_page = page_cache.getPage(parent->children[index]);
@@ -321,11 +360,12 @@ void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> pa
         throw std::runtime_error("child or sibling page not found");
     }
     
-    // Create copies to modify
+    // Create copies to modify, we can't modify directly because of cache
     Page<KeyType> modified_child = *child_page;
     Page<KeyType> modified_sibling = *sibling_page;
 
-    if (modified_child.is_leaf) { // If leaf, just borrow the last key from sibling
+    // If it is a leaf just borrow the last key from its sibling
+    if (modified_child.is_leaf) {
         modified_child.keys.insert(modified_child.keys.begin(), modified_sibling.keys.back()); // Insert at the beginning
         
         // Borrow the corresponding data
@@ -358,6 +398,12 @@ void BTree<KeyType, ValueType>::borrowFromLeft(std::shared_ptr<Page<KeyType>> pa
     }
 }
 
+/*
+ Very similar to the above function, but this would be used when
+ borrowing from the right sibling, in case of underflow.
+ The reason we have both is that in B+Trees, we may need to borrow
+ from either side depending on the position of the child.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::borrowFromRight(std::shared_ptr<Page<KeyType>> parent, int index) {
     auto child_page = content_storage.getPage(parent->children[index]);
@@ -401,9 +447,12 @@ void BTree<KeyType, ValueType>::borrowFromRight(std::shared_ptr<Page<KeyType>> p
     }
 }
 
-// Merge two nodes
+/*
+ Helper function to merge two nodes in case borrowing is not possible.
+*/
 template <typename KeyType, typename ValueType>
 void BTree<KeyType, ValueType>::mergeNodes(std::shared_ptr<Page<KeyType>> parent, int index) {
+    // Get left and right pages from content storage, so we can modify them
     auto left_page = content_storage.getPage(parent->children[index]);
     auto right_page = content_storage.getPage(parent->children[index + 1]);
     
@@ -411,7 +460,7 @@ void BTree<KeyType, ValueType>::mergeNodes(std::shared_ptr<Page<KeyType>> parent
         throw std::runtime_error("left or right page not found");
     }
     
-    // Create copies to modify
+    // Create copies to modify, we can't modify directly because of cache
     Page<KeyType> modified_left = *left_page;
     Page<KeyType> modified_right = *right_page;
 
@@ -431,7 +480,10 @@ void BTree<KeyType, ValueType>::mergeNodes(std::shared_ptr<Page<KeyType>> parent
     content_storage.storePage(modified_left);
 }
 
-// Public search method
+/*
+ Search method to find a value given a key in the B+Tree using 
+ our helper findKey function.
+*/
 template <typename KeyType, typename ValueType>
 ValueType* BTree<KeyType, ValueType>::search(const KeyType& key) {
     if (!root) return nullptr;
