@@ -6,6 +6,8 @@ Note that git commit history is not representative of the work distribution, as 
 
 A simple command-line interface to test the B+Tree database implementation with content-addressable storage, plus a FastAPI web server for REST API access.
 
+Continue reading the README for implementation and design details!!
+
 ## Building
 
 ```bash
@@ -111,9 +113,13 @@ Goodbye!
 
 <img width="701" height="231" alt="image" src="https://github.com/user-attachments/assets/bf3ab7cb-3dd9-4680-8c2a-facec1e4bdc9" />
 
+A B+ Tree is a self-balancing tree data structure optimized for disk storage and database systems. Unlike regular B-Trees, B+ Trees have a key difference: **all data is stored only in the leaf nodes**, while internal nodes contain only keys for navigation. The key is knowing that each node is a Page<KeyType> which can include keys, children, data, is_leaf boolean, and header.page_id. All of these pages live in the page cache + content storage, and before modifying a page/node, we use the WAL to log these operations. Note that this is just a page struct, not actual virtual pages that live in your OS.
 
-A B+ Tree is a self-balancing tree data structure optimized for disk storage and database systems. Unlike regular B-Trees, B+ Trees have a key difference: **all data is stored only in the leaf nodes**, while internal nodes contain only keys for navigation.
+The page format is [header][keys][pointers or values]
 
+The keys in a B+Tree must also be sorted. In this smaller database, we use insertion sort to preserve this property, however this can be improved in the future by for example using heaps.
+
+Since we also have a cache using shared pointers, when we want to change cached nodes we use copy on write, since mutating them directly violates cache coherence. So, we update it using copy on write, then add it back to the cache to be used in order to not interfere with any current reads.
 ### Structure:
 - **Internal nodes**: Store keys and child pointers for navigation
 - **Leaf nodes**: Store keys and actual data values
@@ -140,6 +146,46 @@ A B+ Tree is a self-balancing tree data structure optimized for disk storage and
 - Identical pages share the same content hash, enabling deduplication
 - There is an LRU cache as part of the block level cache to optimize content-addressable storage (more on that later)
 
+## What do pages look like in our project?
+Each page is just a bunch of bytes that maps to a node in our B+Tree. In other words, it is a fixed size region of bytes in a file where a single B+Tree node is stored. The page IDs are used to load in the page from our content addressable storage. That is why sometimes in our code, you will see:
+```c++
+auto child = page_cache.getPage(page_id);
+```
+Page layout:
+```
++--------------------------------------------------------------+
+| PageHeader (fixed-size)                                      |
+|   - page_id                                                  |
+|   - is_leaf                                                  |
+|   - key_count                                                |
+|   - etc...                                                   |
++--------------------------------------------------------------+
+| Sorted Keys array                                            |
+|   k0, k1, k2, ... (variable-sized, based on KeyType)         |
++--------------------------------------------------------------+
+| Pointers or Values                                           |
+|   If internal: child page_ids                                |
+|   If leaf: serialized values                                 |
++--------------------------------------------------------------+
+| Free space (unused bytes up to PAGE_SIZE, because key_count  |
+| can change.)                                                 |
++--------------------------------------------------------------+
+```
+## How do we actually do operations based off of this?
+Let's go over search, insert, and delete operations.
+
+Search: Traverse the B+Tree until you reach your leaf node, and return the correct value
+
+```walk page → decide branch based on keys → load next page by id → repeat until leaf```
+
+Insert: Similar to traversal, except when you reach your leaf, insert into this position, and do whatever you need (bubbling up, etc) to preserve the B+Tree properties. Then, insertion writes key/value into the leaf page buffer (data), keeps it sorted, and enqueues it for disk write.
+
+```walk page → decide branch based on keys → load next page by id → repeat until leaf → insert node```
+
+Delete: Similar to traversal, except when you reach your leaf, you delete it, and do whatever you need (for example merging sibling nodes) to preserve the B+Tree properties. Then, deletion removes the key from the keys vector, removes the corresponding value bytes from data, and flushes the modified page via the cache & writer queue.
+
+```walk page → decide branch based on keys → load next page by id → repeat until leaf → delete node```
+
 ## Content-Addressable Storage
 
 The database implements content-addressable storage where each page is identified by a unique hash based on its content rather than a fixed physical location. This approach enables automatic deduplication since identical pages produce the same hash and are stored only once, reducing storage requirements by eliminating duplicates. The system maintains a mapping from content hashes to actual page data through the `ContentStorage` class, which checks for existing content before writing new pages.
@@ -161,7 +207,7 @@ All B+ Tree operations first go through the cache, modified pages are queued for
 <img width="650" height="447" alt="image" src="https://github.com/user-attachments/assets/c8bfef66-f3e9-445e-acad-46507709a63e" />
 <img width="650" height="556" alt="image" src="https://github.com/user-attachments/assets/2f190399-d968-46e0-9d66-55b75ae8dfc5" />
 
-## API Endpoints
+## API Endpoints (in progress)
 
 The FastAPI server provides the following REST endpoints:
 
