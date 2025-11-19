@@ -40,7 +40,7 @@ make
 make tests
 ```
 
-### FastAPI Web Server
+### FastAPI Web Server (in progress)
 ```bash
 cd python
 source venv/bin/activate
