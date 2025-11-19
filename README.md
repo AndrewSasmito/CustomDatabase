@@ -188,9 +188,22 @@ Delete: Similar to traversal, except when you reach your leaf, you delete it, an
 
 ## Content-Addressable Storage
 
-The database implements content-addressable storage where each page is identified by a unique hash based on its content rather than a fixed physical location. This approach enables automatic deduplication since identical pages produce the same hash and are stored only once, reducing storage requirements by eliminating duplicates. The system maintains a mapping from content hashes to actual page data through the `ContentStorage` class, which checks for existing content before writing new pages.
+The database implements content-addressable storage where each page is identified by a unique hash based on its content rather than a fixed physical location.
 
-This design provides significant storage efficiency improvements, particularly during B+ Tree operations like splits and merges where similar page structures are common. Content-based addressing also enables more intelligent caching strategies since pages can be cached by their content hash, improving cache hit rates when the same content is requested under different logical page IDs. Additionally, content hashes provide built in data integrity verification, so any corruption or modification to page content results in a different hash, making tampering immediately detectable without additional overhead.
+This approach allows automatic deduplication, since identical pages produce the same hash and are stored only once, so we don't store repeats which in tur reduces storage requirements. This also greatly reduces disk amplification, which is defined as "a phenomenon where the amount of data physically written to a storage device is greater than the amount of data intended to be written by the host". However, it means whenever we modify a page we must update the hash.
+
+We have a mapping from content hashes to actual page data through the `ContentStorage` class, which checks for existing content before writing new pages.
+
+We have two data structures in this class, which are:
+
+  ```c++
+std::unordered_map<std::string, std::shared_ptr<Page<KeyType>>> content_map;
+std::unordered_map<uint16_t, std::string> page_to_hash;
+```
+
+They are self explanatory, and are used to map pages to its hash and vice versa. We use shared pointers in content_map and throughout our codebase so we can automatically free memory when its no longer being referenced, and because the cache, B+Trees, etc. can all refer to the same pages. TLDR, we can ignore manual memory management; ownership is shared and the page is freed automatically when no one references it.
+
+This design gives us significant storage efficiency improvements, particularly during B+ Tree operations like splits and merges where similar page structures are common. Content-based addressing also enables more intelligent caching strategies since pages can be cached by their content hash, improving cache hit rates when the same content is requested under different logical page IDs. As for where it is used, the block level cache depends on this CAS (content addressable storage), which is used heavily throughout operations.
 
 ## Block-Level Cache
 
