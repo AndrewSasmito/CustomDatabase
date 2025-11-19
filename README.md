@@ -220,6 +220,28 @@ All B+ Tree operations first go through the cache, modified pages are queued for
 <img width="650" height="447" alt="image" src="https://github.com/user-attachments/assets/c8bfef66-f3e9-445e-acad-46507709a63e" />
 <img width="650" height="556" alt="image" src="https://github.com/user-attachments/assets/2f190399-d968-46e0-9d66-55b75ae8dfc5" />
 
+## Writer Queue (multi threaded)
+
+Instead of this:
+
+```insert() → modify page → immediately write to “disk”```
+
+We want this:
+
+```
+insert() → modify page → putPage() → enqueueWrite(page_id, page) → return fast
+           background threads: writerWorker() → storePage(page) → clearDirtyFlag()
+```
+
+Why? Because writing to storage can be slow, and doing it synchronously could block main operations like inserts and queries to the DB. So, we try to aim for asynchronous modifications which we can do with threads.
+
+In our writer queue, we start a specified number of C++ library writer threads (in this database its currently 2 but can be adjusted up to your preference). Each thread pulls in a batch of waiting writes to then process, and then writes it to the content addressable storage. The thread processes are trivial and they loop while running is true or there’s still work for them to do, and the efficiency happens because each thread can call writerWorker at the same time. 
+
+In order to preserve mutual exclusion, the cache has its own mutex, and we use a simple condition variable pattern when getting batches and enqueuing writes.
+
+We also have a job scheduler in `job_scheduler.cpp` that could be used to schedule higher level threads that can relate to other parts of the DB, such as the write ahead log (in progress). However, for the writer threads, we just use a FIFO writer queue.
+
+
 ## API Endpoints (in progress)
 
 The FastAPI server provides the following REST endpoints:
