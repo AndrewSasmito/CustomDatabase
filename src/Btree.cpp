@@ -5,6 +5,8 @@
 /*
  BTree Constructor Implementation, that initializes storage,
  cache, writer queue, and WAL manager.
+
+ TODO: add mutexes for thread safety
  */
 template <typename KeyType, typename ValueType>
 BTree<KeyType, ValueType>::BTree(int maxKeys) 

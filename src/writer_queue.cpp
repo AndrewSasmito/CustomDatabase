@@ -2,6 +2,12 @@
 #include <iostream>
 #include <chrono>
 
+/*
+ This is where we manage async writes to the ContentStorage.
+ We use threads to batch writes and improve throughput, why? Because
+ writing to storage can be slow, and doing it synchronously could
+ block main operations like inserts and queries to the DB.
+*/
 template <typename KeyType>
 WriterQueue<KeyType>::WriterQueue(ContentStorage<KeyType>* storage, PageCache<KeyType>* cache, 
                                   size_t num_threads, size_t max_queue)
@@ -14,27 +20,39 @@ WriterQueue<KeyType>::WriterQueue(ContentStorage<KeyType>* storage, PageCache<Ke
     }
 }
 
+/*
+ Destructor that stops all writer threads.
+*/
 template <typename KeyType>
 WriterQueue<KeyType>::~WriterQueue() {
+    // Simply call the stop helper function
     stop();
 }
 
+/*
+ Start a specified number of writer threads.
+*/
 template <typename KeyType>
 void WriterQueue<KeyType>::start() {
     if (running.load()) {
         return; // Already running
     }
     
+    // Here running is just an std::atomic<bool> flag
     running.store(true);
     
     // Start writer threads
     for (size_t i = 0; i < num_writer_threads; ++i) {
+        // Emplace back a new thread running the writerWorker method
         writer_threads.emplace_back(&WriterQueue::writerWorker, this, i);
     }
     
     std::cout << "WriterQueue: Started " << num_writer_threads << " writer threads" << std::endl;
 }
 
+/*
+ Stop all writer threads.
+*/
 template <typename KeyType>
 void WriterQueue<KeyType>::stop() {
     if (!running.load()) {
@@ -43,12 +61,13 @@ void WriterQueue<KeyType>::stop() {
     
     std::cout << "WriterQueue: Stopping writer threads" << std::endl;
     
-    // Signal threads to stop
+    // Set running to false and notify all waiting threads to wake up
     running.store(false);
     queue_cv.notify_all();
     
     // Wait for all threads to finish
     for (auto& thread : writer_threads) {
+        // Join each thread, or basically pause the current thread until the writer thread finishes
         if (thread.joinable()) {
             thread.join();
         }
@@ -57,7 +76,10 @@ void WriterQueue<KeyType>::stop() {
     writer_threads.clear();
     std::cout << "WriterQueue: All writer threads stopped" << std::endl;
 }
-
+/*
+ Enqueue write request for a page, returns false if queue is full,
+ and wake up one writer thread if possible.
+*/
 template <typename KeyType>
 bool WriterQueue<KeyType>::enqueueWrite(uint16_t page_id, std::shared_ptr<Page<KeyType>> page) {
     std::unique_lock<std::mutex> lock(queue_mutex);
@@ -68,19 +90,29 @@ bool WriterQueue<KeyType>::enqueueWrite(uint16_t page_id, std::shared_ptr<Page<K
         return false;
     }
     
-    write_queue.emplace(page_id, page);
+    // Enqueue the write request to the write queue
+   write_queue.emplace(page_id, page);
     
-    // Notify writer thread
+    // Wake up one writer thread to process the new request
     queue_cv.notify_one();
     
     return true;
 }
 
+/*
+ Wait until the write queue is empty.
+*/
 template <typename KeyType>
 void WriterQueue<KeyType>::waitForEmpty() {
     std::unique_lock<std::mutex> lock(queue_mutex);
     empty_cv.wait(lock, [this] { return write_queue.empty(); });
 }
+
+/*
+ This function collects a batch of write requests
+ that can be up to max_batch_size in size, and 
+ returns the batch.
+*/
 
 template <typename KeyType>
 std::vector<WriteRequest<KeyType>> WriterQueue<KeyType>::getBatch(size_t max_batch_size) {
@@ -88,6 +120,7 @@ std::vector<WriteRequest<KeyType>> WriterQueue<KeyType>::getBatch(size_t max_bat
     std::unique_lock<std::mutex> lock(queue_mutex);
     
     auto timeout = std::chrono::steady_clock::now() + batch_timeout;
+    // Wait until there are write requests or a time out
     queue_cv.wait_until(lock, timeout, [this] { return !write_queue.empty() || !running.load(); });
     
     // Collect batch
@@ -96,6 +129,7 @@ std::vector<WriteRequest<KeyType>> WriterQueue<KeyType>::getBatch(size_t max_bat
         write_queue.pop();
     }
     
+    // Notify any thread waiting for empty queue if empty
     if (write_queue.empty()) {
         empty_cv.notify_all();
     }
@@ -103,6 +137,9 @@ std::vector<WriteRequest<KeyType>> WriterQueue<KeyType>::getBatch(size_t max_bat
     return batch;
 }
 
+/*
+ Helper function to process a batch of write requests.
+*/
 template <typename KeyType>
 void WriterQueue<KeyType>::processBatch(const std::vector<WriteRequest<KeyType>>& batch, int worker_id) {
     if (batch.empty()) return;
@@ -123,6 +160,9 @@ void WriterQueue<KeyType>::processBatch(const std::vector<WriteRequest<KeyType>>
     }
 }
 
+/*
+ Actually process a batch of write requests after collecting them.
+*/
 template <typename KeyType>
 void WriterQueue<KeyType>::writerWorker(int worker_id) {
     std::cout << "WriterQueue: Worker " << worker_id << " started" << std::endl;

@@ -2,7 +2,6 @@
 /*
 *   Add a new record into the page
 *   Store the binary representation of the record
-*    
 *   Return true if successful, false otherwise
 */
 template <typename KeyType>
@@ -12,7 +11,6 @@ bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record) {
 
     SlotEntry slot = {page->header.num_slots, page->header.free_space_offset, len, false};
     page->slot_directory.push_back(slot);
-    
     page->header.num_slots += 1;
     page->header.free_space_size -= len + slotSize;
     page->header.free_space_offset += len;
@@ -30,7 +28,6 @@ bool insertRecord(Page<KeyType> *page, const std::vector<uint8_t>& record) {
 
 /*
     Delete the record with index slot_id from the page
-
     Return true if successful, false otherwise
 */
 template <typename KeyType>
@@ -89,8 +86,8 @@ bool deleteRecord(Page<KeyType> *page) {
 */
 template <typename KeyType>
 void updatePageChecksum(Page<KeyType> *page) {
-    // page->header.checksum = compute_sha256_page_management(page->data); // Commented out to avoid hash dependency
-    page->header.checksum = "dummy_checksum"; // Placeholder
+    page->header.checksum = compute_sha256_page_management(page->data); // Commented out to avoid hash dependency
+    //page->header.checksum = "dummy_checksum"; // Placeholder
 }
 
 /*
